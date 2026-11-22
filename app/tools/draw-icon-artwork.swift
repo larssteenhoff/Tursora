@@ -5,8 +5,7 @@ import UniformTypeIdentifiers
 
 // Draws the 1024 px "Files" artwork: the whole icon tile is a folder, filled
 // edge to edge (navy back, a tab at the top left, a sheet of paper and a bright
-// front flap with a faint divider hinting at the two panes). Original artwork,
-// not Apple's Finder mark. tools/render-icon.swift clips it to the macOS icon
+// front flap). Original artwork, not Apple's Finder mark. tools/render-icon.swift clips it to the macOS icon
 // shape (824 px, 100 px margins).
 // Usage: swift draw-icon-artwork.swift Resources/AppIcon-artwork.png
 // then tools/make-icon.sh builds AppIcon.png and AppIcon.icns from it.
@@ -47,9 +46,6 @@ ctx.saveGState(); ctx.setShadow(offset: CGSize(width: 0, height: -6), blur: 28, 
 ctx.addPath(flap); ctx.setFillColor(c(0.3, 0.6, 1)); ctx.fillPath(); ctx.restoreGState()
 fill(flap, grad([c(0.52, 0.81, 1.0), c(0.16, 0.50, 0.98)]), top: flapTop, bottom: 100)
 ctx.setFillColor(c(1, 1, 1, 0.5)); ctx.fill(CGRect(x: 0, y: flapTop - 7, width: CGFloat(size), height: 7))
-// A faint embossed divider: two panes, one app.
-ctx.setFillColor(c(0.06, 0.32, 0.82, 0.22)); ctx.addPath(rr(CGRect(x: 507, y: 230, width: 10, height: 380), 5)); ctx.fillPath()
-ctx.setFillColor(c(1, 1, 1, 0.28)); ctx.addPath(rr(CGRect(x: 517, y: 230, width: 4, height: 380), 2)); ctx.fillPath()
 
 guard let image = ctx.makeImage(),
       let out = CGImageDestinationCreateWithURL(URL(fileURLWithPath: CommandLine.arguments[1]) as CFURL,

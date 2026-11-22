@@ -1,6 +1,6 @@
 # Application icon
 
-The app shows itself as **Files**. Its mark is a filled tile that is itself a folder, edge to edge: a navy back with a tab at the top left, a white sheet peeking out, and a bright front flap with a faint divider hinting at the two panes. It is original artwork, not Apple's Finder mark.
+The app shows itself as **Files**. Its mark is a filled tile that is itself a folder, edge to edge: a navy back with a tab at the top left, a white sheet peeking out, and a bright front flap. It is original artwork, not Apple's Finder mark.
 
 The artwork is drawn full bleed and clipped to the macOS icon grid: an 824 px rounded square with 100 px margins. An icon that does not fill that shape is put on a gray plate in the Dock by recent macOS releases, which is what happened to a folder-shaped silhouette.
 
