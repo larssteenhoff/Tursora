@@ -644,6 +644,13 @@ final class FileListViewController: NSViewController, FileViewing, NSOutlineView
 
     private static let groupCellID = NSUserInterfaceItemIdentifier("group")
 
+    /// Row views paint an opaque background by default, which would cover the
+    /// stripes FileOutlineView draws behind them. File rows stay clear; group
+    /// headers keep theirs so a floating header still hides what scrolls under it.
+    func outlineView(_ outlineView: NSOutlineView, didAdd rowView: NSTableRowView, forRow row: Int) {
+        if !rowView.isGroupRowStyle { rowView.backgroundColor = .clear }
+    }
+
     /// A row scrolled away withdraws its thumbnail request.
     func outlineView(_ outlineView: NSOutlineView, didRemove rowView: NSTableRowView, forRow row: Int) {
         cancelThumbnails(in: rowView)
@@ -773,7 +780,7 @@ final class FileOutlineView: NSOutlineView {
         didSet { if stripeStrength != oldValue { needsDisplay = true } }
     }
     /// The darkest stripe, as an alpha of the label colour, at strength 1.
-    static let maximumStripeAlpha: CGFloat = 0.12
+    static let maximumStripeAlpha: CGFloat = 0.2
 
     deinit { if let preferencesObserver { NotificationCenter.default.removeObserver(preferencesObserver) } }
 

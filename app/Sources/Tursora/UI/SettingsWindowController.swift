@@ -11,7 +11,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
     }
 
     let extensionsCheckbox = NSButton(checkboxWithTitle: "Show all filename extensions", target: nil, action: nil)
-    let rowStripeSlider = NSSlider(value: 0.4, minValue: 0, maxValue: 1, target: nil, action: nil)
+    let rowStripeSlider = NSSlider(value: 0.25, minValue: 0, maxValue: 1, target: nil, action: nil)
     let restoreWorkspaceCheckbox = NSButton(checkboxWithTitle: "Reopen windows and tabs on launch", target: nil, action: nil)
     /// macOS has no "default file manager" setting; what it has is the handler
     /// for `public.folder`. The button asks the system, which puts its own

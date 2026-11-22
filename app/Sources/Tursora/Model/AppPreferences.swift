@@ -161,7 +161,7 @@ enum AppPreferences {
         }
         /// How much the list view's alternate rows differ, 0 (all rows the
         /// same) to 1 (strongest). The default is close to the system's stripe.
-        static let defaultRowStripeStrength = 0.4
+        static let defaultRowStripeStrength = 0.25
         var rowStripeStrength: Double {
             get {
                 guard defaults.object(forKey: Key.rowStripes) != nil else { return Self.defaultRowStripeStrength }

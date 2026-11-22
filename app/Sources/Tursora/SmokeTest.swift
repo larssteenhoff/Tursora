@@ -49,7 +49,7 @@ enum SmokeTest: SmokeSuite {
             ("Icon assets", { done in IconAssetsSmokeTests.run(); done() }),
             ("Server connections", { done in ServerConnectionSmokeTests.run(); done() }),
             ("Settings", { done in SettingsSmokeTests.run(); done() }),
-            ("Row stripes", { done in RowStripesSmokeTests.run(); done() }),
+            ("Row stripes", RowStripesSmokeTests.run),
             ("Updates", { done in UpdateSmokeTests.run(); done() }),
             ("Workspace session model", { done in WorkspaceSessionModelSmokeTests.run(); done() }),
             ("Preview pane", PreviewPaneSmokeTests.run),
