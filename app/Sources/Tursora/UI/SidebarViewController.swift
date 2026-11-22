@@ -15,6 +15,8 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     private var isArrangingPanels = false
 
     var onSelectPlace: ((URL) -> Void)?
+    /// A file or app favourite was clicked: open it rather than browse.
+    var onOpenFile: ((URL) -> Void)?
     var onOpenInNewTab: ((URL) -> Void)?
     var onOpenInOtherPane: ((URL) -> Void)?
     /// Files dropped onto a place: (urls, destination folder, .move or .copy).
@@ -238,8 +240,10 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
             menu.addItem(mi)
         }
         add("Open", #selector(ctxOpen(_:)))
-        add("Open in New Tab", #selector(ctxOpenInNewTab(_:)))
-        add("Open in Other Pane", #selector(ctxOpenInOtherPane(_:)))
+        if !place.opensAsFile {
+            add("Open in New Tab", #selector(ctxOpenInNewTab(_:)))
+            add("Open in Other Pane", #selector(ctxOpenInOtherPane(_:)))
+        }
         if place.isRemovable {
             menu.addItem(.separator())
             add("Remove from Favourites", #selector(ctxRemove(_:)))
@@ -252,7 +256,8 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     }
 
     @objc private func ctxOpen(_ sender: NSMenuItem) {
-        if let place = sender.representedObject as? PlacesModel.Place { onSelectPlace?(place.url) }
+        guard let place = sender.representedObject as? PlacesModel.Place else { return }
+        if place.opensAsFile { onOpenFile?(place.url) } else { onSelectPlace?(place.url) }
     }
     @objc private func ctxOpenInNewTab(_ sender: NSMenuItem) {
         if let place = sender.representedObject as? PlacesModel.Place { onOpenInNewTab?(place.url) }
@@ -310,16 +315,16 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         let urls = info.fileURLs
         guard !urls.isEmpty else { return [] }
 
-        if let node = item as? PlaceNode, index == NSOutlineViewDropOnItemIndex {
+        if let node = item as? PlaceNode, index == NSOutlineViewDropOnItemIndex, !node.place.opensAsFile {
             // Dropping files onto a place: move on the same volume, copy otherwise; ⌥ forces copy.
             if urls.contains(where: { $0.standardizedFileURL == node.place.url.standardizedFileURL }) { return [] }
             let wantsCopy = info.draggingSourceOperationMask == .copy
                 || !FileOperations.sameVolume(urls[0], node.place.url)
             return wantsCopy ? .copy : .move
         }
-        // Dropping folders between favourites adds them at that position.
-        let allFolders = urls.allSatisfy { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
-        if allFolders, item as? SectionNode === fav || item is PlaceNode {
+        // Dropping folders, files or apps between favourites adds them there,
+        // as in Finder. A file favourite is not a drop destination itself.
+        if item as? SectionNode === fav || item is PlaceNode {
             let target = reorderTargetIndex(item: item, childIndex: index, pointerY: outlineView.convert(info.draggingLocation, from: nil).y)
             outlineView.setDropItem(fav, dropChildIndex: target)
             return .link
@@ -365,7 +370,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         }
         let urls = info.fileURLs
         guard !urls.isEmpty else { return false }
-        if let node = item as? PlaceNode, index == NSOutlineViewDropOnItemIndex {
+        if let node = item as? PlaceNode, index == NSOutlineViewDropOnItemIndex, !node.place.opensAsFile {
             let op: NSDragOperation = (info.draggingSourceOperationMask == .copy
                 || !FileOperations.sameVolume(urls[0], node.place.url)) ? .copy : .move
             onDropFiles?(urls, node.place.url, op)
@@ -427,6 +432,12 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     func outlineViewSelectionDidChange(_ notification: Notification) {
         guard !isSyncingSelection,
               let node = outlineView.item(atRow: outlineView.selectedRow) as? PlaceNode else { return }
+        if node.place.opensAsFile {
+            // Open it, and keep the highlight on the folder actually shown.
+            onOpenFile?(node.place.url)
+            if let location = foldersLocation { syncSelection(to: location) } else { outlineView.deselectAll(nil) }
+            return
+        }
         onSelectPlace?(node.place.url)
     }
 }

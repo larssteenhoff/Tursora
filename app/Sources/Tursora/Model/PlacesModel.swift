@@ -12,6 +12,9 @@ final class PlacesModel {
         /// Locations (volumes) cannot.
         var isRemovable: Bool = false
         var isBuiltIn: Bool = false
+        /// A file or package (such as an app) kept in Favourites, as Finder
+        /// allows: clicking it opens it instead of browsing into it.
+        var opensAsFile: Bool = false
     }
 
     struct Section {
@@ -106,8 +109,13 @@ final class PlacesModel {
                 places.append(Place(name: name, url: url, symbolName: b.symbol, isRemovable: true, isBuiltIn: true))
             } else if ref.hasPrefix("path:") {
                 let url = URL(fileURLWithPath: String(ref.dropFirst("path:".count)))
-                guard FileManager.default.fileExists(atPath: url.path) else { continue }
-                places.append(Place(name: url.lastPathComponent, url: url, symbolName: "folder", isRemovable: true))
+                var isDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else { continue }
+                let isPackage = isDirectory.boolValue && NSWorkspace.shared.isFilePackage(atPath: url.path)
+                let isFile = !isDirectory.boolValue || isPackage
+                let symbol = !isFile ? "folder" : (url.pathExtension == "app" ? "app" : "doc")
+                let name = url.pathExtension == "app" ? url.deletingPathExtension().lastPathComponent : url.lastPathComponent
+                places.append(Place(name: name, url: url, symbolName: symbol, isRemovable: true, opensAsFile: isFile))
             } else { continue }
             refs.append(ref)
         }
@@ -122,7 +130,7 @@ final class PlacesModel {
 
     func isFavourite(_ url: URL) -> Bool { favouriteIndex(of: url) != nil }
 
-    /// Insert a folder at a favourites position (nil = append).
+    /// Insert a folder, file or app at a favourites position (nil = append).
     func addFavourite(_ url: URL, at index: Int? = nil) {
         guard !isFavourite(url) else { return }
         var order = storedOrder()

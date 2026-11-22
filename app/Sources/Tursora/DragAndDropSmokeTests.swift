@@ -377,6 +377,31 @@ enum DragAndDropSmokeTests: SmokeSuite {
               sprung.map { $0.standardizedFileURL } == [alpha.standardizedFileURL], sprung.map(\.path).description)
         check("sidebar: spring loading moved no files", fm.fileExists(atPath: dragged.path))
 
+        // Finder keeps files and apps in Favourites too; clicking one opens it.
+        let app = fixture.appendingPathComponent("Tool.app")
+        try fm.createDirectory(at: app.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        places.addFavourite(dragged)
+        places.addFavourite(app)
+        await waitUntil("the sidebar shows the file and app favourites") {
+            wc.sidebar.row(for: dragged) >= 0 && wc.sidebar.row(for: app) >= 0
+        }
+        let filePlace = places.sections.first?.places.first { $0.url.standardizedFileURL == dragged.standardizedFileURL }
+        let appPlace = places.sections.first?.places.first { $0.url.standardizedFileURL == app.standardizedFileURL }
+        check("sidebar: a file favourite opens as a file, with a document symbol",
+              filePlace?.opensAsFile == true && filePlace?.symbolName == "doc")
+        check("sidebar: an app favourite opens as a file, named without .app",
+              appPlace?.opensAsFile == true && appPlace?.symbolName == "app" && appPlace?.name == "Tool")
+        var opened: [URL] = []
+        wc.sidebar.onOpenFile = { opened.append($0) }
+        let before = wc.browser.currentURL
+        wc.sidebar.outlineView.selectRowIndexes(IndexSet(integer: wc.sidebar.row(for: dragged)), byExtendingSelection: false)
+        check("sidebar: clicking a file favourite opens it and leaves the pane where it was",
+              opened.map(\.standardizedFileURL) == [dragged.standardizedFileURL]
+              && wc.browser.currentURL?.standardizedFileURL == before?.standardizedFileURL,
+              "opened=\(opened.map(\.lastPathComponent))")
+        places.removeFavourite(dragged)
+        places.removeFavourite(app)
+
         wc.toggleFoldersPanel(nil)
         guard let panel = wc.sidebar.foldersPanel else {
             check("folder tree: the panel is created", false); return

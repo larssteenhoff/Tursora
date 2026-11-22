@@ -6,6 +6,7 @@ User-visible changes are recorded here. Add changes under Unreleased, then move 
 
 ### Added
 
+- Files and apps can be dragged into the sidebar's Favourites, as in Finder; clicking one opens it.
 - **Settings → General → Path Bar Icons** shows each path bar folder's own colour icon, as Finder does (the default), or the previous gray symbols.
 - **Remember Each Sidebar Item** joins the folder-view choices in Settings and View → Folder View Settings: every folder inside a sidebar item (Desktop, Downloads, a volume…) shares that item's view, so browsing within it no longer switches between list, icon and column view.
 - **Settings → General → Alternating Row Colors** sets how much every other row in List view differs; all the way left makes every row the same color.

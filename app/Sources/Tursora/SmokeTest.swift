@@ -391,6 +391,9 @@ enum SmokeTest: SmokeSuite {
         check("file list fills the browser", b.fileList.view.frame.height > 150, "\(b.fileList.view.frame.size)")
         check("table is inside the window", b.fileList.tableView.window === wc.window)
         check("no history yet", !b.canGoBack && !b.canGoForward)
+        // The path bar also shows a selected item (D120); with nothing
+        // selected it is the location alone.
+        b.fileView.select(urls: [])
         check("address bar: home is one segment", wc.tabs.addressBar.segmentCount == 1,
               "\(wc.tabs.addressBar.segmentTitles)")
         check("tab bar is hidden with one tab", wc.tabs.tabBar.isHidden)

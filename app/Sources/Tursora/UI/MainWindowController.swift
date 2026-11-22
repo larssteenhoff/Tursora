@@ -164,6 +164,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         tabs.onTabsChanged = { [weak self] in self?.validateNavigation(); self?.syncFilterUI() }
         tabs.onWorkspaceSessionChanged = { [weak self] in self?.onSessionChanged?() }
         sidebar.onSelectPlace = { [weak self] url in self?.browser.navigate(to: url) }
+        sidebar.onOpenFile = { [weak self] url in _ = self?.browser.fileOpener(url) }
         sidebar.onOpenInNewTab = { [weak self] url in self?.tabs.newTab(at: url) }
         sidebar.onOpenInOtherPane = { [weak self] url in self?.tabs.openInOtherPane(url) }
         sidebar.onDropFiles = { [weak self] urls, dest, op in self?.browser.dropFiles(urls, to: dest, op: op) }
