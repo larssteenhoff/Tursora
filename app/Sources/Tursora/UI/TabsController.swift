@@ -72,6 +72,9 @@ final class TabsController: NSViewController {
             self.performTabAction(.newTab, on: self.currentPage)
         }
         tabBar.onMove = { [weak self] from, to in self?.moveTab(from: from, to: to) }
+        // New Tab lives in the window's toolbar, so the strip has no + and is
+        // shown only once there is more than one tab to choose between.
+        tabBar.showsAddButton = false
         tabBar.onDragOutside = { [weak self] index, windowPoint in self?.updateSplitOverlay(for: index, at: windowPoint) }
         tabBar.dropOperationForTab = { [weak self] index, urls, mask in
             guard let self else { return [] }
@@ -389,6 +392,7 @@ final class TabsController: NSViewController {
     private func refreshChrome() {
         let titles = pages.map(\.tabTitle)
         tabBar.reload(titles: titles, selected: currentIndex, toolTips: pages.map(\.tabToolTip))
+        tabBar.isHidden = pages.count <= 1
         onTabsChanged?()
         onWorkspaceSessionChanged?()
     }

@@ -393,7 +393,7 @@ enum SmokeTest: SmokeSuite {
         check("no history yet", !b.canGoBack && !b.canGoForward)
         check("address bar: home is one segment", wc.tabs.addressBar.segmentCount == 1,
               "\(wc.tabs.addressBar.segmentTitles)")
-        check("tab bar stays visible with one tab", !wc.tabs.tabBar.isHidden)
+        check("tab bar is hidden with one tab", wc.tabs.tabBar.isHidden)
 
         guard let folder = b.model.items.first(where: { $0.isNavigable }) else {
             fail("navigation fixture has a subfolder", "Home contains no navigable folder; the remaining integration checks cannot run")
@@ -467,7 +467,7 @@ enum SmokeTest: SmokeSuite {
             check("moveTab keeps current tab current", t.currentIndex == 0 && t.current !== first)
             t.moveTab(from: 0, to: 1)
             check("closeCurrentTab", t.closeCurrentTab() && t.count == 1)
-            check("single tab keeps its title and context menu visible", !t.tabBar.isHidden)
+            check("closing down to a single tab hides the strip", t.tabBar.isHidden)
             check("can reopen", t.canReopenClosedTab)
             check("reopenClosedTab restores it", t.reopenClosedTab() && t.count == 2 && t.current.currentURL?.lastPathComponent == folder.name)
             check("reopened tab kept its history", t.current.history.entries.count == 1)
@@ -959,7 +959,7 @@ enum SmokeTest: SmokeSuite {
             check("drag tab 1 into the left half splits tab 0", t.splitCurrentPage(withTab: 1, side: .left) && t.count == 1 && t.isSplit)
             check("adopted pane is on the left and active", t.currentPage.activeSide == .left && t.current === dragged && t.current.currentURL?.lastPathComponent == "sub")
             check("original pane is on the right", t.currentPage.panes[1] === first)
-            check("single split tab keeps both directory names visible", !t.tabBar.isHidden)
+            check("a single split tab also hides the strip", t.tabBar.isHidden)
             // a closed split tab comes back split
             t.newTab(at: tmp)                 // tab 1 (unsplit) becomes current
             t.selectTab(at: 0)

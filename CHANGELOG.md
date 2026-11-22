@@ -31,6 +31,7 @@ User-visible changes are recorded here. Add changes under Unreleased, then move 
 
 ### Changed
 
+- The tab strip is hidden while a window has one tab, and **New Tab** is now a + button in the toolbar instead of at the end of the tabs.
 - A split tab moves (keeping the same width as the other tabs) so its divider sits over the line between its two panes, each name over its own pane, and follows that line as the panes are resized.
 - A single click on one half of a split tab selects the tab and activates the pane on that side.
 - The inactive pane of a split fills the strip above its path bar with the window surface instead of leaving a dark gap under its half of the tab; only the active pane shows the blue line.

@@ -33,25 +33,29 @@ struct TabStripLayout {
     /// truncated, measured by the view. Zero means "unmeasured", which settles
     /// every tab at `preferredTabWidth` or below.
     init(width: CGFloat, height: CGFloat = 36, tabCount: Int, naturalTabWidth: CGFloat = 0,
-         stretch requested: (index: Int, extra: CGFloat)? = nil) {
+         stretch requested: (index: Int, extra: CGFloat)? = nil, hasAddButton: Bool = true) {
         self.tabCount = max(0, tabCount)
         let width = max(0, width), height = max(0, height)
         let inset = min(Self.horizontalInset, width / 2)
-        let buttonWidth = min(Self.controlWidth, max(0, width - inset * 2))
+        let controlButtonWidth = min(Self.controlWidth, max(0, width - inset * 2))
+        // Without a New Tab button (the window has one in its toolbar) the
+        // strip gives that room back to the tabs.
+        let buttonWidth = hasAddButton ? controlButtonWidth : 0
+        let addGap = hasAddButton ? Self.controlGap : 0
         let buttonY = max(0, (height - 28) / 2)
         let buttonHeight = min(28, height)
         // Widest the tab area could be: New Tab pinned to the trailing edge.
         let pinnedX = max(inset, width - inset - buttonWidth)
-        let pinnedViewport = max(0, pinnedX - Self.controlGap - inset)
+        let pinnedViewport = max(0, pinnedX - addGap - inset)
         let overflowing = CGFloat(self.tabCount) * Self.minimumTabWidth > pinnedViewport
         if overflowing {
-            let overflowWidth = min(Self.controlWidth, pinnedViewport)
-            overflowButtonFrame = CGRect(x: pinnedX - Self.controlGap - overflowWidth,
+            let overflowWidth = min(controlButtonWidth, pinnedViewport)
+            overflowButtonFrame = CGRect(x: pinnedX - addGap - overflowWidth,
                                          y: buttonY, width: overflowWidth, height: buttonHeight)
         } else {
             overflowButtonFrame = nil
         }
-        let available = max(0, (overflowButtonFrame?.minX ?? pinnedX) - Self.controlGap - inset)
+        let available = max(0, (overflowButtonFrame.map { $0.minX - Self.controlGap } ?? (pinnedX - addGap)) - inset)
         if self.tabCount == 0 {
             tabWidth = 0
         } else {
@@ -74,7 +78,7 @@ struct TabStripLayout {
         // near the tabs it adds to, so it follows them instead (D79).
         addButtonFollowsTabs = self.tabCount > 0 && !overflowing && tabsWidth < available
         let viewportWidth = addButtonFollowsTabs ? tabsWidth : available
-        addButtonFrame = CGRect(x: addButtonFollowsTabs ? inset + tabsWidth + Self.controlGap : pinnedX,
+        addButtonFrame = CGRect(x: addButtonFollowsTabs ? inset + tabsWidth + addGap : pinnedX,
                                 y: buttonY, width: buttonWidth, height: buttonHeight)
         viewportFrame = CGRect(x: inset, y: 0, width: viewportWidth, height: height)
         contentWidth = max(viewportWidth, tabsWidth)

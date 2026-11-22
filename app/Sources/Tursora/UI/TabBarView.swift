@@ -243,7 +243,7 @@ final class TabBarView: NSView {
             palette.rail.setFill()
             let railFrame = geometry.viewportFrame.insetBy(dx: 0, dy: 3)
             NSBezierPath(roundedRect: railFrame, xRadius: railFrame.height / 2, yRadius: railFrame.height / 2).fill()
-            for frame in [geometry.addButtonFrame, geometry.overflowButtonFrame].compactMap({ $0 }) {
+            for frame in [showsAddButton ? geometry.addButtonFrame : nil, geometry.overflowButtonFrame].compactMap({ $0 }) {
                 palette.rail.setFill()
                 NSBezierPath(ovalIn: frame.insetBy(dx: 1, dy: 1)).fill()
             }
@@ -304,11 +304,23 @@ final class TabBarView: NSView {
     var tabWidth: CGFloat { layoutForTesting.tabWidth }
     var layoutForTesting: TabStripLayout {
         let plain = TabStripLayout(width: bounds.width, height: bounds.height, tabCount: items.count,
-                                   naturalTabWidth: naturalTabWidth)
+                                   naturalTabWidth: naturalTabWidth, hasAddButton: showsAddButton)
         guard let stretch = splitStretch(in: plain) else { return plain }
         return TabStripLayout(width: bounds.width, height: bounds.height, tabCount: items.count,
-                              naturalTabWidth: naturalTabWidth, stretch: stretch)
+                              naturalTabWidth: naturalTabWidth, stretch: stretch, hasAddButton: showsAddButton)
     }
+
+    /// False when the window's toolbar carries New Tab: the strip then draws
+    /// no + of its own and gives its room to the tabs.
+    var showsAddButton = true {
+        didSet {
+            guard showsAddButton != oldValue else { return }
+            addButton.isHidden = !showsAddButton
+            needsLayout = true
+            needsDisplay = true
+        }
+    }
+    var isAddButtonVisibleForTesting: Bool { !addButton.isHidden }
 
     /// Where the selected tab's panes divide, in window coordinates; nil when
     /// the selected tab is not split. Set by the tabs controller.

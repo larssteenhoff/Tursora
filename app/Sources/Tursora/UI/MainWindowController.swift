@@ -76,6 +76,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         static let forward = NSToolbarItem.Identifier("tursora.forward")
         static let up = NSToolbarItem.Identifier("tursora.up")
         static let viewMode = NSToolbarItem.Identifier("tursora.viewMode")
+        static let newTab = NSToolbarItem.Identifier("tursora.newTab")
         static let split = NSToolbarItem.Identifier("tursora.split")
         static let terminal = NSToolbarItem.Identifier("tursora.terminal")
         static let search = NSToolbarItem.Identifier("tursora.search")
@@ -921,7 +922,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     /// place an identifier its delegate allows, and that is how the button
     /// comes back when the entry point is switched on again.
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [ToolbarID.sidebar, ToolbarID.back, ToolbarID.forward, ToolbarID.up, .flexibleSpace, ToolbarID.split, ToolbarID.terminal, ToolbarID.viewMode, ToolbarID.group, ToolbarID.share, ToolbarID.more, ToolbarID.search]
+        [ToolbarID.sidebar, ToolbarID.back, ToolbarID.forward, ToolbarID.up, .flexibleSpace, ToolbarID.newTab, ToolbarID.split, ToolbarID.terminal, ToolbarID.viewMode, ToolbarID.group, ToolbarID.share, ToolbarID.more, ToolbarID.search]
     }
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier,
@@ -938,6 +939,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
             let (item, button) = historyItem(id, "Forward", "chevron.right", #selector(goForward(_:)), back: false)
             forwardButton = button; return item
         case ToolbarID.up:      return navItem(id, "Enclosing Folder", "arrow.up", #selector(goUp(_:)))
+        case ToolbarID.newTab:
+            let item = navItem(id, "New Tab", "plus", #selector(newTab(_:)))
+            item.isNavigational = false
+            return item
         case ToolbarID.split:
             let (item, button) = toggleItem(id, "Split View", "rectangle.split.2x1", #selector(toggleSplit(_:)), overflowTitle: splitActionTitle)
             splitButton = button

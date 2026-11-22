@@ -27,6 +27,20 @@ enum SplitTabSmokeTests: SmokeSuite {
         controller.window?.makeKeyAndOrderFront(nil)
         await expectEventually("fixture loaded") { controller.browser.model.generation > 0 }
         let tabs = controller.tabs
+        // One tab: no strip, and New Tab is a toolbar button rather than a +.
+        check("a window with one tab hides the tab strip", tabs.tabBar.isHidden)
+        let toolbarNewTab = controller.window?.toolbar?.items.first { $0.itemIdentifier.rawValue == "tursora.newTab" }
+        check("the toolbar carries New Tab and the strip draws no + of its own",
+              toolbarNewTab != nil && !tabs.tabBar.isAddButtonVisibleForTesting
+              && tabs.tabBar.layoutForTesting.addButtonFrame.width == 0)
+        if let toolbarNewTab, let action = toolbarNewTab.action {
+            NSApp.sendAction(action, to: toolbarNewTab.target, from: toolbarNewTab)
+        }
+        check("the toolbar's New Tab opens a tab and the strip appears", tabs.count == 2 && !tabs.tabBar.isHidden)
+        _ = tabs.closeTab(at: 1)
+        check("closing back to one tab hides the strip again", tabs.count == 1 && tabs.tabBar.isHidden)
+        _ = tabs.newTab(at: root)
+        tabs.selectTab(at: 1)
         tabs.toggleSplit()
         func settle() { controller.window?.contentView?.layoutSubtreeIfNeeded(); tabs.tabBar.layoutSubtreeIfNeeded() }
         settle()

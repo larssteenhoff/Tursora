@@ -58,7 +58,7 @@ enum TabActionsSmokeTests: SmokeSuite {
         wc.window?.makeKeyAndOrderFront(nil)
         let tabs = wc.tabs
         await listed(wc.browser, at: folders[0])
-        check("\(mode): single tab strip remains visible", !tabs.tabBar.isHidden)
+        check("\(mode): a single tab hides the strip", tabs.tabBar.isHidden)
         let first = tabs.currentPage
         let left = first.active
         let right = first.split(with: folders[1])
