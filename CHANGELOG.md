@@ -6,6 +6,8 @@ User-visible changes are recorded here. Add changes under Unreleased, then move 
 
 ### Added
 
+- **Settings → General → Tab Style** chooses how tabs look: Folder Tabs (the new default; the selected tab joins the folder below it), Finder Style segments, Underline (shown only when more than one tab is open), or the original Pills.
+- **⌃-scroll zooms** like ⌘-scroll in the list, icon and column views, and a mouse wheel now changes the icon size by one slider step per notch.
 - **View → Show View Options (⌘J)** gathers view mode, sorting, grouping, icon size, preview and column controls in a panel that follows the active pane. List and column-view widths are remembered with folder settings, with default and reset actions.
 - **Move Items Here (⌥⌘V)**, **Deselect All (⌥⌘A)**, **Invert Selection**, **New Folder with Selection (⌃⌘N)** and **Show Package Contents** fill out everyday file commands across the three views.
 - **File → Recently Closed Tabs** lets you choose from the current window's ten retained tabs. Launch restoration also restores selections and scroll positions after their listings are ready.
@@ -13,6 +15,7 @@ User-visible changes are recorded here. Add changes under Unreleased, then move 
 
 ### Fixed
 
+- Column view rows draw their icon and name centred in the row, so the selection highlight lines up with them; at larger icon sizes the icon is no longer cut off at the top of the row.
 - Changing zoom, icon previews or recursive folder-size calculation keeps the selected files and scroll position.
 - New Folder registers its own Undo/Redo, and New Folder with Selection groups the folder and moved items into one undo operation.
 - Batch rename rejects overflowing sequence numbers and overlapping parent/child selections before changing files.
@@ -26,6 +29,13 @@ User-visible changes are recorded here. Add changes under Unreleased, then move 
 
 ### Changed
 
+- A split tab moves (keeping the same width as the other tabs) so its divider sits over the line between its two panes, each name over its own pane, and follows that line as the panes are resized.
+- A single click on one half of a split tab selects the tab and activates the pane on that side.
+- The inactive pane of a split fills the strip above its path bar with the window surface instead of leaving a dark gap under its half of the tab; only the active pane shows the blue line.
+- The close button on a tab moved from its left end to its right end.
+- The app now shows itself as **Files**, with a new icon: a white folder with a friendly face on a blue tile. Internal identifiers are unchanged, so settings, the saved workspace and granted permissions carry over.
+- The status-bar zoom slider has a round gray knob.
+- The selected tab's pill is darker in a focused window.
 - Address-bar completion runs off the main thread, reuses recent directory listings and ignores results from an editor session that has already changed.
 - Browser file commands and undo are separated from archive reads and navigation. Smoke tests isolate application preferences, flush fixture stores before cleanup and wait for folder-tree work before asserting inactivity.
 - Smoke verification removes duplicated status, search and archive work, groups large parameter matrices without dropping their inputs, and reports actual assertion totals separately from result lines with timings for each suite.

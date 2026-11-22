@@ -38,7 +38,7 @@ final class TrashOrigins {
             switch self {
             case .available: return nil
             case .unknownOrigin:
-                return "Tursora doesn’t know where this item came from. Only items Tursora moved to the Trash can be put back."
+                return "\(AppIdentity.displayName) doesn’t know where this item came from. Only items \(AppIdentity.displayName) moved to the Trash can be put back."
             case .missingParent(let parent):
                 return "The folder “\(parent.lastPathComponent)” it came from no longer exists."
             case .nameTaken(let url):

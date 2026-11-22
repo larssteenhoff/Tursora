@@ -19,7 +19,7 @@ protocol FileViewing: AnyObject {
     /// Spring-loaded folders: a drag hovered over this folder long enough that
     /// the pane should open it. Never a file mutation.
     var onSpringLoad: ((URL) -> Void)? { get set }
-    /// +1 / -1 from ⌘-scroll or pinch.
+    /// +1 / -1 from ⌘- or ⌃-scroll, or pinch.
     var onZoomGesture: ((Int) -> Void)? { get set }
 
     var contextMenu: NSMenu? { get set }
@@ -93,13 +93,37 @@ extension NSRange {
     }
 }
 
-/// ⌘-scroll and pinch both zoom one step per accumulated threshold
-/// (Dolphin's Ctrl-wheel); shared by the list and the grid.
+/// ⌘- or ⌃-scroll and pinch all zoom by the status bar slider's steps
+/// (Dolphin's Ctrl-wheel); shared by the list, the grid and the columns.
 struct ZoomGestureAccumulator {
     private var wheel: CGFloat = 0
     private var magnification: CGFloat = 0
 
-    /// +1 / -1 once the accumulated ⌘-scroll reaches 8 pt, else nil.
+    /// A scroll with ⌘ or ⌃ held zooms instead of scrolling. ⌃ is Dolphin's
+    /// own modifier; ⌘ is the Mac's. macOS can claim ⌃-scroll first for
+    /// Accessibility zoom (System Settings → Accessibility → Zoom → "Use
+    /// scroll gesture with modifier keys to zoom"), and then no window sees it.
+    static func isZoomScroll(_ flags: NSEvent.ModifierFlags) -> Bool {
+        let held = flags.intersection(.deviceIndependentFlagsMask)
+        return held.contains(.command) || held.contains(.control)
+    }
+
+    /// One zoom step for a zoom scroll, or nil while a smooth scroll is still
+    /// accumulating. A mouse wheel moves in whole notches of about one point
+    /// each (`hasPreciseScrollingDeltas == false`), so each notch is one step,
+    /// as a click on the slider is; a trackpad's continuous deltas accumulate.
+    mutating func step(scrollingDeltaY delta: CGFloat, precise: Bool) -> Int? {
+        guard !precise else { return step(scrollingDeltaY: delta) }
+        guard delta != 0 else { return nil }
+        wheel = 0
+        return delta > 0 ? 1 : -1
+    }
+
+    mutating func step(scroll event: NSEvent) -> Int? {
+        step(scrollingDeltaY: event.scrollingDeltaY, precise: event.hasPreciseScrollingDeltas)
+    }
+
+    /// +1 / -1 once the accumulated smooth zoom scroll reaches 8 pt, else nil.
     mutating func step(scrollingDeltaY delta: CGFloat) -> Int? { Self.step(&wheel, delta, threshold: 8) }
     /// +1 / -1 once the accumulated pinch reaches 0.12, else nil.
     mutating func step(magnification delta: CGFloat) -> Int? { Self.step(&magnification, delta, threshold: 0.12) }

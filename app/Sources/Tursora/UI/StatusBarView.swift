@@ -22,13 +22,15 @@ final class StatusBarView: NSView {
         spinner.controlSize = .small
         spinner.isDisplayedWhenStopped = false
         addSubview(spinner)
+        // A round knob: with tick marks on, AppKit draws a pointed capsule.
+        zoomSlider.cell = RoundKnobSliderCell()
         zoomSlider.controlSize = .mini
         zoomSlider.minValue = 0
         zoomSlider.maxValue = 1
         zoomSlider.allowsTickMarkValuesOnly = true
         zoomSlider.numberOfTickMarks = 2
         zoomSlider.tickMarkPosition = .below
-        zoomSlider.toolTip = "Icon size (⌘-scroll or pinch to zoom)"
+        zoomSlider.toolTip = "Icon size (⌘- or ⌃-scroll, or pinch, to zoom)"
         zoomSlider.target = self
         zoomSlider.action = #selector(sliderMoved(_:))
         addSubview(zoomSlider)
@@ -82,10 +84,10 @@ final class StatusBarView: NSView {
         if let context = archiveStatus ?? searchStatus ?? locationStatus { parts.insert(context, at: 0) }
         label.stringValue = parts.joined(separator: " — ")
         label.toolTip = archiveStatus == nil ? nil
-            : "Read-only ZIP. Opened files are temporary copies kept until Tursora quits. Edits do not update the ZIP; use Save As to keep them."
+            : "Read-only ZIP. Opened files are temporary copies kept until \(AppIdentity.displayName) quits. Edits do not update the ZIP; use Save As to keep them."
         if searchStatus != nil { label.toolTip = "Search results use their original file locations. Reveal in Enclosing Folder opens a result's parent." }
         if archiveStatus == nil, searchStatus == nil, locationStatus != nil {
-            label.toolTip = "Items in the Trash. Put Back returns an item Tursora trashed to where it came from; Empty Trash erases everything."
+            label.toolTip = "Items in the Trash. Put Back returns an item \(AppIdentity.displayName) trashed to where it came from; Empty Trash erases everything."
         }
         toolTip = label.toolTip
     }
@@ -93,4 +95,39 @@ final class StatusBarView: NSView {
     /// Nested-safe: several operations may overlap.
     func beginBusy() { busyCount += 1; spinner.startAnimation(nil) }
     func endBusy() { busyCount = max(0, busyCount - 1); if busyCount == 0 { spinner.stopAnimation(nil) } }
+}
+
+/// The zoom slider's cell: the stock track and tick marks, with a round gray
+/// knob in place of the capsule AppKit draws while tick marks are shown.
+final class RoundKnobSliderCell: NSSliderCell {
+    /// The knob's diameter, so a check can confirm it is a circle.
+    private(set) var lastKnobRect: NSRect = .zero
+
+    /// A gray knob: light gray on the dark track, a touch lighter in light mode.
+    static let knobColor = NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(srgbRed: 0.68, green: 0.68, blue: 0.70, alpha: 1)
+            : NSColor(srgbRed: 0.80, green: 0.80, blue: 0.82, alpha: 1)
+    }
+
+    override func drawKnob(_ knobRect: NSRect) {
+        let diameter = min(knobRect.width, knobRect.height) - 1
+        let circle = NSRect(x: knobRect.midX - diameter / 2, y: knobRect.midY - diameter / 2,
+                            width: diameter, height: diameter)
+        lastKnobRect = circle
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.3)
+        shadow.shadowBlurRadius = 1.5
+        shadow.shadowOffset = NSSize(width: 0, height: -0.5)
+        shadow.set()
+        let path = NSBezierPath(ovalIn: circle)
+        (isEnabled ? Self.knobColor : Self.knobColor.withAlphaComponent(0.6)).setFill()
+        path.fill()
+        NSGraphicsContext.restoreGraphicsState()
+        NSColor.black.withAlphaComponent(0.18).setStroke()
+        let edge = NSBezierPath(ovalIn: circle.insetBy(dx: 0.25, dy: 0.25))
+        edge.lineWidth = 0.5
+        edge.stroke()
+    }
 }

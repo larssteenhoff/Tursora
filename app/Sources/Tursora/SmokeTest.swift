@@ -53,6 +53,8 @@ enum SmokeTest: SmokeSuite {
             ("Workspace session model", { done in WorkspaceSessionModelSmokeTests.run(); done() }),
             ("Preview pane", PreviewPaneSmokeTests.run),
             ("Column view", ColumnViewSmokeTests.run),
+            ("Zoom scroll", ZoomScrollSmokeTests.run),
+            ("Split tab", SplitTabSmokeTests.run),
             ("Workspace session UI", WorkspaceSessionSmokeTests.run),
             ("Workspace restoration races", WorkspaceRaceSmokeTests.run),
             ("Workspace continuity", WorkspaceContinuitySmokeTests.run),

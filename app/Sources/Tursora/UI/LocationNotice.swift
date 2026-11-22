@@ -53,10 +53,10 @@ final class LocationNotice: NSView {
     /// system file manager and always has the access). Recorded as inferred in
     /// docs/research/trash.md.
     static func accessDeniedMessage(for url: URL) -> String {
-        "Tursora doesn’t have permission to open “\(url.lastPathComponent)”."
+        "\(AppIdentity.displayName) doesn’t have permission to open “\(url.lastPathComponent)”."
     }
     static let accessDeniedDetail =
-        "Give Tursora Full Disk Access in Privacy & Security settings, then try again."
+        "Give \(AppIdentity.displayName) Full Disk Access in Privacy & Security settings, then try again."
 
     func showAccessDenied(_ url: URL, error: Error) {
         self.url = url

@@ -12,6 +12,9 @@ enum TabAppearanceSmokeTests: SmokeSuite {
         window.isReleasedWhenClosed = false
         window.contentView = bar
         defer { window.close() }
+        // The geometry and palette checks below describe the original pill
+        // look; the other styles have their own section at the end.
+        bar.style = .pills
         let titles = ["Design | Delivery", "A long folder name with a recognizable ending", "Research"]
         bar.reload(titles: titles, selected: 1, toolTips: ["/Design\n/Delivery", "/Long", "/Research"])
         bar.layoutSubtreeIfNeeded()
@@ -21,6 +24,7 @@ enum TabAppearanceSmokeTests: SmokeSuite {
             let close = bar.closeFrameForTesting(index)
             check("title \(index) reserves symmetrical space", abs(label.midX - frame.midX) < 1)
             check("close \(index) has usable target", close.width >= 20 && close.height >= 20)
+            check("close \(index) sits on the tab's right side", close.minX > frame.midX && close.maxX <= frame.maxX)
             check("hit test \(index)", bar.tabIndex(at: NSPoint(x: frame.midX, y: frame.midY)) == index)
         }
         let titleBeforeHover = bar.titleFrameForTesting(0)
@@ -95,6 +99,170 @@ enum TabAppearanceSmokeTests: SmokeSuite {
         }
         check("light and dark produce different surfaces", fills[0] - fills[1] > 0.4)
         check("switching back restores original palette", abs(fills[0] - fills[4]) < 0.001)
+        tabStyles()
+        splitAlignment()
+    }
+
+    /// Folder tabs, Finder-style segments and the underline, read back from
+    /// the strip's own drawing: each style must put its selection mark where
+    /// it claims to, and keep both kinds of title readable on its surfaces.
+    private static func tabStyles() {
+        let domain = "com.tursora.tabstyle-smoke.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let center = NotificationCenter()
+        let store = AppPreferences.Store(defaults: defaults, notificationCenter: center)
+        check("a new install draws folder tabs", store.tabStyle == .folder && AppPreferences.TabStyle.default == .folder)
+        var notices = 0
+        let token = center.addObserver(forName: .tursoraPreferencesChanged, object: store, queue: nil) { _ in notices += 1 }
+        defer { center.removeObserver(token) }
+        store.tabStyle = .segments
+        store.tabStyle = .segments
+        check("choosing a tab style is stored and announced once",
+              AppPreferences.Store(defaults: defaults, notificationCenter: center).tabStyle == .segments && notices == 1,
+              "notices=\(notices)")
+        defaults.set("gallery", forKey: "tabStyle")
+        check("an unknown stored tab style falls back to folder tabs", store.tabStyle == .folder)
+        check("Settings offers all four styles, pills kept",
+              AppPreferences.TabStyle.allCases.map(\.title) == ["Folder Tabs", "Finder Style", "Underline", "Pills"])
+
+        let bar = TabBarView(frame: NSRect(x: 0, y: 0, width: 720, height: TabBarView.height))
+        let window = NSWindow(contentRect: bar.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = bar
+        defer { window.close() }
+        bar.reload(titles: ["Applications", "Documents", "Downloads"], selected: 1)
+        /// `a` is a pixel read from the strip's bitmap, whose raw components
+        /// are already display values (labelled "calibrated", but converting
+        /// them would shift them); `b` is a palette colour, compared in sRGB.
+        func distance(_ a: NSColor, _ b: NSColor) -> CGFloat {
+            guard let b = b.usingColorSpace(.sRGB), a.numberOfComponents >= 3 else { return 9 }
+            return abs(a.redComponent - b.redComponent) + abs(a.greenComponent - b.greenComponent) + abs(a.blueComponent - b.blueComponent)
+        }
+        for name: NSAppearance.Name in [.aqua, .darkAqua] {
+            let appearance = NSAppearance(named: name)!
+            window.appearance = appearance
+            let colors = bar.styleColorsForTesting(appearance: appearance, active: window.isKeyWindow)
+            check("\(name.rawValue) titles stay readable on the recessed band and the selected surface",
+                  contrast(colors.secondaryText, colors.recessed) >= 3 && contrast(colors.text, colors.background) >= 4.5)
+            for style in AppPreferences.TabStyle.allCases where style != .pills {
+                bar.style = style
+                bar.layoutSubtreeIfNeeded()
+                bar.needsDisplay = true
+                guard let rep = bar.bitmapImageRepForCachingDisplay(in: bar.bounds) else {
+                    check("\(name.rawValue) \(style) renders", false); continue
+                }
+                bar.cacheDisplay(in: bar.bounds, to: rep)
+                let scale = CGFloat(rep.pixelsHigh) / bar.bounds.height
+                // Strip coordinates (origin bottom-left) to bitmap rows (top-left).
+                func pixel(_ x: CGFloat, _ y: CGFloat) -> NSColor {
+                    rep.colorAt(x: Int(x * scale), y: rep.pixelsHigh - 1 - Int(y * scale)) ?? .clear
+                }
+                let selected = bar.tabFrameForTesting(1), other = bar.tabFrameForTesting(0)
+                switch style {
+                case .folder:
+                    // Below the tabs, between the strip's edge and the tab
+                    // bottoms: joined to the pane under the selected tab only.
+                    let under = pixel(selected.midX, 2), beside = pixel(other.midX, 2)
+                    check("\(name.rawValue) folder tabs join the selected tab to the pane below",
+                          distance(under, colors.background) < distance(under, colors.recessed)
+                              && distance(beside, colors.recessed) < distance(beside, colors.background),
+                          "under=\(under) beside=\(beside) background=\(colors.background) recessed=\(colors.recessed)")
+                case .segments:
+                    // Above the tab views, which stop 4 pt short of the top:
+                    // the selected segment runs the strip's full height.
+                    let top = bar.bounds.height - 2
+                    let inside = pixel(selected.midX, top), outside = pixel(other.midX, top)
+                    check("\(name.rawValue) Finder-style segments fill the selected tab full height",
+                          distance(inside, colors.background) < distance(inside, colors.recessed)
+                              && distance(outside, colors.recessed) < distance(outside, colors.background),
+                          "inside=\(inside) outside=\(outside)")
+                case .underline:
+                    let mark = pixel(selected.midX, selected.minY + 1), none = pixel(other.midX, other.minY + 1)
+                    check("\(name.rawValue) the underline marks only the selected tab",
+                          distance(mark, colors.accent) < distance(mark, colors.background)
+                              && distance(none, colors.background) < distance(none, colors.accent),
+                          "mark=\(mark) other=\(none)")
+                case .pills:
+                    break
+                }
+            }
+        }
+        // The underline marks a choice; with one tab there is none to mark.
+        bar.style = .underline
+        bar.reload(titles: ["Applications"], selected: 0)
+        bar.layoutSubtreeIfNeeded()
+        bar.needsDisplay = true
+        if let rep = bar.bitmapImageRepForCachingDisplay(in: bar.bounds) {
+            bar.cacheDisplay(in: bar.bounds, to: rep)
+            let scale = CGFloat(rep.pixelsHigh) / bar.bounds.height
+            let tab = bar.tabFrameForTesting(0)
+            let colors = bar.styleColorsForTesting(appearance: window.effectiveAppearance, active: window.isKeyWindow)
+            let mark = rep.colorAt(x: Int(tab.midX * scale), y: rep.pixelsHigh - 1 - Int((tab.minY + 1) * scale)) ?? .clear
+            check("a single tab has no underline",
+                  distance(mark, colors.background) < distance(mark, colors.accent), "pixel=\(mark)")
+        } else { check("a single underline tab renders", false) }
+        bar.reload(titles: ["Applications", "Documents", "Downloads"], selected: 1)
+
+        // The strip follows the application's preference as it changes.
+        let saved = AppPreferences.shared.tabStyle
+        AppPreferences.shared.tabStyle = .underline
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        let followed = bar.style == .underline
+        AppPreferences.shared.tabStyle = saved
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        check("an open tab strip follows a Tab Style change in Settings", followed && bar.style == saved)
+    }
+
+    /// A split tab lines its divider up with the line between its panes.
+    private static func splitAlignment() {
+        // The layout on its own: one slot widens, the later ones shift.
+        let plain = TabStripLayout(width: 1200, tabCount: 3)
+        let stretched = TabStripLayout(width: 1200, tabCount: 3, stretch: (1, 150))
+        check("a gap moves one tab and the later ones by the same amount, every tab the same width",
+              abs(stretched.frameForTab(1).minX - plain.frameForTab(1).minX - 150) < 0.01
+              && abs(stretched.frameForTab(2).minX - plain.frameForTab(2).minX - 150) < 0.01
+              && stretched.frameForTab(0) == plain.frameForTab(0)
+              && (0..<3).allSatisfy { abs(stretched.frameForTab($0).width - plain.frameForTab(0).width) < 0.01 })
+        check("reorder targets follow the stretched slots",
+              stretched.targetIndex(atDocumentX: stretched.frameForTab(1).maxX - 1) == 1
+              && stretched.targetIndex(atDocumentX: stretched.frameForTab(2).minX + 1) == 2)
+        let crowded = TabStripLayout(width: 300, tabCount: 3, stretch: (1, 150))
+        check("an overflowing strip opens no gap", crowded.stretch == nil)
+        let tight = TabStripLayout(width: 800, tabCount: 3, stretch: (1, 5000))
+        check("a gap spends only the room the strip has spare",
+              (tight.stretch?.extra ?? 0) > 0 && tight.frameForTab(2).maxX <= tight.viewportFrame.width + 0.01)
+
+        // The strip, given a split position: the divider lands on it.
+        let bar = TabBarView(frame: NSRect(x: 0, y: 0, width: 1200, height: TabBarView.height))
+        let window = NSWindow(contentRect: bar.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = bar
+        defer { window.close() }
+        bar.reload(titles: [TabTitle("Home"), TabTitle("Home"), TabTitle(left: "Left", right: "Right")], selected: 2)
+        var split: CGFloat? = 900
+        bar.splitDividerWindowX = { split }
+        bar.needsLayout = true
+        bar.layoutSubtreeIfNeeded()
+        let divider = bar.titleDividerFrameForTesting(2) ?? .zero
+        let left = bar.titleFrameForTesting(2), right = bar.trailingTitleFrameForTesting(2) ?? .zero
+        check("the split tab's divider sits over the pane split, a name on each side, at the usual width",
+              abs(divider.midX - 900) < 1.5 && left.maxX < 900 && right.minX > 900
+              && abs(bar.tabFrameForTesting(2).width - bar.tabFrameForTesting(0).width) < 0.5
+              && bar.isTitleFullyShownForTesting(2) == true && bar.isTrailingTitleFullyShownForTesting(2) == true,
+              "divider=\(divider.midX) left=\(left) right=\(right)")
+        check("the moved tab keeps New Tab after it", bar.layoutForTesting.addButtonFrame.minX >= bar.tabFrameForTesting(2).maxX)
+        split = 100
+        bar.needsLayout = true
+        bar.layoutSubtreeIfNeeded()
+        let fallback = bar.titleDividerFrameForTesting(2) ?? .zero
+        let tab = bar.tabFrameForTesting(2)
+        check("a split left of the tab's middle leaves the tab its normal width",
+              abs(tab.width - (bar.layoutForTesting.tabWidth - 4)) < 0.5 && tab.contains(NSPoint(x: fallback.midX, y: tab.midY)))
+        split = nil
+        bar.reload(titles: [TabTitle("a"), TabTitle("b"), TabTitle("c")], selected: 1)
+        bar.layoutSubtreeIfNeeded()
+        check("a tab that is not split is never stretched", bar.layoutForTesting.stretch == nil)
     }
 
     private static func mouseInteractions(_ bar: TabBarView, window: NSWindow, titles: [String]) {

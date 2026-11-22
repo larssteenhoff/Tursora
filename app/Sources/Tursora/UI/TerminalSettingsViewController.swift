@@ -16,7 +16,7 @@ final class TerminalSettingsViewController: NSViewController {
     let foregroundField = NSTextField(string: "")
     let backgroundField = NSTextField(string: "")
     let applyColorsButton = NSButton(title: "Apply Colors", target: nil, action: nil)
-    let preview = NSTextField(labelWithString: "Tursora ~/Projects % ls\nDocuments  Images  Notes.txt")
+    let preview = NSTextField(labelWithString: "\(AppIdentity.displayName) ~/Projects % ls\nDocuments  Images  Notes.txt")
     let message = NSTextField(wrappingLabelWithString: "")
     let resetButton = NSButton(title: "Restore Terminal Defaults", target: nil, action: nil)
     let unavailableNote = NSTextField.detail("Turn on Terminal panel in General to change these settings. A hidden session keeps running in the meantime.")

@@ -6,6 +6,10 @@ set -euo pipefail
 CONFIG="${1:-release}"
 APP_NAME="Tursora"
 EXEC_NAME="Tursora"
+# What people see in the menu bar, Dock, Finder and privacy prompts. The bundle
+# id, executable and bundle folder keep "Tursora" so preferences, the saved
+# workspace and granted permissions carry over (see Model/AppIdentity.swift).
+DISPLAY_NAME="Files"
 BUNDLE_ID="${TURSORA_BUNDLE_ID:-com.tursora.Tursora}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # One source of truth for the version: the VERSION file at the repository root.
@@ -61,6 +65,11 @@ cp "$ROOT/Resources/SwiftTerm-LICENSE.txt" "$APP/Contents/Resources/SwiftTerm-LI
 # Re-sign only our outer bundle; --deep signing would strip helper entitlements.
 ditto "$SPARKLE_FRAMEWORK" "$APP/Contents/Frameworks/Sparkle.framework"
 cp "$ROOT/Resources/Sparkle-LICENSE.txt" "$APP/Contents/Resources/Sparkle-LICENSE.txt"
+# Finder and the Dock show a bundle's display name only through a localized
+# InfoPlist.strings; without it they show the folder name, "Tursora".
+mkdir -p "$APP/Contents/Resources/en.lproj"
+printf '"CFBundleDisplayName" = "%s";\n"CFBundleName" = "%s";\n' "$DISPLAY_NAME" "$DISPLAY_NAME" \
+    > "$APP/Contents/Resources/en.lproj/InfoPlist.strings"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -71,8 +80,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleExecutable</key>             <string>$EXEC_NAME</string>
     <key>CFBundleIdentifier</key>             <string>$BUNDLE_ID</string>
     <key>CFBundleInfoDictionaryVersion</key>  <string>6.0</string>
-    <key>CFBundleName</key>                   <string>Tursora</string>
-    <key>CFBundleDisplayName</key>            <string>$APP_NAME</string>
+    <key>CFBundleName</key>                   <string>$DISPLAY_NAME</string>
+    <key>CFBundleDisplayName</key>            <string>$DISPLAY_NAME</string>
+    <key>LSHasLocalizedDisplayName</key>      <true/>
     <key>CFBundleIconFile</key>               <string>AppIcon</string>
     <key>CFBundlePackageType</key>            <string>APPL</string>
     <key>CFBundleShortVersionString</key>     <string>$VERSION</string>
@@ -90,11 +100,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSSupportsAutomaticTermination</key> <false/>
     <key>NSHumanReadableCopyright</key>       <string>Copyright © 2026 Fangxin Lin</string>
     <!-- Folder-access prompts (TCC) show these reasons. Keyed off CFBundleIdentifier. -->
-    <key>NSDesktopFolderUsageDescription</key>   <string>Tursora is a file manager and needs to show the contents of your Desktop.</string>
-    <key>NSDocumentsFolderUsageDescription</key> <string>Tursora is a file manager and needs to show the contents of your Documents.</string>
-    <key>NSDownloadsFolderUsageDescription</key> <string>Tursora is a file manager and needs to show the contents of your Downloads.</string>
-    <key>NSRemovableVolumesUsageDescription</key> <string>Tursora is a file manager and needs to browse removable volumes.</string>
-    <key>NSNetworkVolumesUsageDescription</key>  <string>Tursora is a file manager and needs to browse network volumes.</string>
+    <key>NSDesktopFolderUsageDescription</key>   <string>$DISPLAY_NAME is a file manager and needs to show the contents of your Desktop.</string>
+    <key>NSDocumentsFolderUsageDescription</key> <string>$DISPLAY_NAME is a file manager and needs to show the contents of your Documents.</string>
+    <key>NSDownloadsFolderUsageDescription</key> <string>$DISPLAY_NAME is a file manager and needs to show the contents of your Downloads.</string>
+    <key>NSRemovableVolumesUsageDescription</key> <string>$DISPLAY_NAME is a file manager and needs to browse removable volumes.</string>
+    <key>NSNetworkVolumesUsageDescription</key>  <string>$DISPLAY_NAME is a file manager and needs to browse network volumes.</string>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>

@@ -23,7 +23,7 @@ final class AppUpdater: NSObject {
             return AppUpdater(driver: nil, unavailableReason: "Updates are disabled during automated tests.")
         }
         guard Bundle.main.bundleURL.pathExtension == "app" else {
-            return AppUpdater(driver: nil, unavailableReason: "Open the packaged Tursora app to check for updates.")
+            return AppUpdater(driver: nil, unavailableReason: "Open the packaged \(AppIdentity.displayName) app to check for updates.")
         }
         return AppUpdater(driver: SparkleUpdateDriver())
     }()

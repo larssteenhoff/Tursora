@@ -15,7 +15,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
     /// macOS has no "default file manager" setting; what it has is the handler
     /// for `public.folder`. The button asks the system, which puts its own
     /// confirmation in front of the user (D86).
-    let defaultFileManagerButton = NSButton(title: "Set Tursora as Default", target: nil, action: nil)
+    let defaultFileManagerButton = NSButton(title: "Set \(AppIdentity.displayName) as Default", target: nil, action: nil)
     let defaultFileManagerStatus = NSTextField.detail("")
     /// True while macOS's own confirmation for the folder role is up.
     private(set) var isClaimingFolderRole = false
@@ -31,6 +31,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
     let folderViewSaveMessage = NSTextField(wrappingLabelWithString: "")
     let retryFolderViewSave = NSButton(title: "Retry Saving View Settings", target: nil, action: nil)
     let folderViewPolicy = NSPopUpButton(frame: .zero, pullsDown: false)
+    let tabStylePopUp = NSPopUpButton(frame: .zero, pullsDown: false)
     let settingsTabs = NSTabView()
     let automaticUpdateChecksCheckbox = NSButton(checkboxWithTitle: "Automatically check for updates", target: nil, action: nil)
     let automaticUpdateDownloadsCheckbox = NSButton(checkboxWithTitle: "Automatically download and install updates", target: nil, action: nil)
@@ -152,6 +153,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
         folderViewPolicy.setAccessibilityLabel("Folder View Settings")
         extensionsCheckbox.target = self
         extensionsCheckbox.action = #selector(toggleExtensions(_:))
+        tabStylePopUp.addItems(withTitles: AppPreferences.TabStyle.allCases.map(\.title))
+        tabStylePopUp.target = self
+        tabStylePopUp.action = #selector(changeTabStyle(_:))
+        tabStylePopUp.setAccessibilityLabel("Tab Style")
         restoreWorkspaceCheckbox.target = self
         restoreWorkspaceCheckbox.action = #selector(toggleWorkspaceRestoration(_:))
         defaultFileManagerButton.bezelStyle = .rounded
@@ -174,6 +179,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
             NSTextField.heading("Opening folders"), defaultFileManagerStatus, defaultFileManagerButton,
             NSTextField.heading("General"), extensionsCheckbox,
             NSTextField.detail("Applies to file labels. Files keep their original names."), separator(),
+            NSTextField.heading("Tab Style"), tabStylePopUp,
+            NSTextField.detail("Folder Tabs join the selected tab to the folder below it. Finder Style splits the bar into flat segments. Underline marks the selected tab with a line. Pills is the original rounded look."), separator(),
             NSTextField.heading("Folder View Settings"), folderViewPolicy,
             NSTextField.detail("Remember view mode, sorting, icon sizes, groups, hidden files and previews. Use View → Folder View Settings to save a default or reset a folder. In Remember Each Folder mode, open panes keep their own view until you revisit the folder."),
             folderViewSaveMessage, retryFolderViewSave, separator(),
@@ -216,12 +223,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
             folderViewSaveMessage.textColor = .systemRed
             retryFolderViewSave.isHidden = false
         } else {
-            folderViewSaveMessage.stringValue = "Settings are stored by Tursora; no files are added to your folders."
+            folderViewSaveMessage.stringValue = "Settings are stored by \(AppIdentity.displayName); no files are added to your folders."
             folderViewSaveMessage.textColor = .secondaryLabelColor
             retryFolderViewSave.isHidden = true
         }
         folderViewPolicy.selectItem(at: viewPropertiesStore.policy == .perDirectory ? 0 : 1)
         extensionsCheckbox.state = preferences.showFileExtensions ? .on : .off
+        tabStylePopUp.selectItem(at: AppPreferences.TabStyle.allCases.firstIndex(of: preferences.tabStyle) ?? 0)
         terminalCheckbox.state = preferences.experimentalTerminalEnabled ? .on : .off
         terminalSettingsController.isAvailable = preferences.experimentalTerminalEnabled
         zipCheckbox.state = preferences.experimentalZIPBrowsingEnabled ? .on : .off
@@ -230,7 +238,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
 
     private func buildUpdates(in content: NSView) {
         let title = NSTextField.heading("Software Updates")
-        let detail = NSTextField.detail("Check for new versions daily. Downloaded updates are verified before installation. Automatic installation is off by default; when enabled, updates can install when you quit Tursora.")
+        let detail = NSTextField.detail("Check for new versions daily. Downloaded updates are verified before installation. Automatic installation is off by default; when enabled, updates can install when you quit \(AppIdentity.displayName).")
         automaticUpdateChecksCheckbox.target = self
         automaticUpdateChecksCheckbox.action = #selector(toggleAutomaticUpdateChecks(_:))
         automaticUpdateDownloadsCheckbox.target = self
@@ -285,6 +293,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
     }
 
     @objc func toggleExtensions(_ sender: NSButton) { preferences.showFileExtensions = sender.state == .on }
+    @objc func changeTabStyle(_ sender: NSPopUpButton) {
+        let styles = AppPreferences.TabStyle.allCases
+        guard styles.indices.contains(sender.indexOfSelectedItem) else { return }
+        preferences.tabStyle = styles[sender.indexOfSelectedItem]
+    }
     @objc func toggleWorkspaceRestoration(_ sender: NSButton) { preferences.restoreWorkspaceOnLaunch = sender.state == .on }
     @objc func retrySavingWorkspace(_ sender: Any?) {
         NotificationCenter.default.post(name: .tursoraWorkspaceSaveRequested, object: workspaceStore)
@@ -326,7 +339,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
         // Never re-enable while the system's confirmation is still up: any
         // unrelated refresh would otherwise arm a second concurrent request.
         defaultFileManagerButton.isEnabled = !isCurrent && !isClaimingFolderRole && problem == nil
-        defaultFileManagerButton.title = isCurrent ? "Tursora Is the Default" : "Set Tursora as Default"
+        defaultFileManagerButton.title = isCurrent ? "\(AppIdentity.displayName) Is the Default" : "Set \(AppIdentity.displayName) as Default"
     }
 
     /// The role can be handed to another application while this window sits
@@ -348,7 +361,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
                     print("default file manager: \(error.localizedDescription)")
                 } else {
                     let alert = NSAlert()
-                    alert.messageText = "Tursora could not become the default."
+                    alert.messageText = "\(AppIdentity.displayName) could not become the default."
                     alert.informativeText = error.localizedDescription
                     if let window = self.window, window.isVisible {
                         alert.beginSheetModal(for: window) { _ in }

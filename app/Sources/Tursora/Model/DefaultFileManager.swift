@@ -67,14 +67,14 @@ enum DefaultFileManager {
         var explanation: String {
             switch self {
             case .notAnApplication:
-                return "Tursora has to be running from an application bundle to become the default."
+                return "\(AppIdentity.displayName) has to be running from an application bundle to become the default."
             case .temporary:
-                return "Move Tursora to your Applications folder and open it from there. "
+                return "Move \(AppIdentity.displayName) to your Applications folder and open it from there. "
                     + "macOS will not let an application running from a temporary location become "
                     + "the default, and a copy opened straight from a downloaded disk image runs "
                     + "from one."
             case .readOnlyVolume:
-                return "Copy Tursora to your Applications folder and open it from there. "
+                return "Copy \(AppIdentity.displayName) to your Applications folder and open it from there. "
                     + "An application running from a disk image cannot become the default."
             }
         }
@@ -133,7 +133,7 @@ enum DefaultFileManager {
     /// What the settings line says, given the current state. Pure, so the
     /// wording is checked without touching LaunchServices.
     static func statusText(isCurrent: Bool, currentName: String?) -> String {
-        if isCurrent { return "Tursora opens folders." }
+        if isCurrent { return "\(AppIdentity.displayName) opens folders." }
         guard let currentName, !currentName.isEmpty else {
             return "Folders open in another application."
         }

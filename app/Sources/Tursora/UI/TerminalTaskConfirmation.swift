@@ -21,7 +21,7 @@ enum TerminalTaskConfirmation {
         let verb: String
         switch action {
         case .quit:
-            alert.messageText = "Quit Tursora and Stop Terminal Tasks?"
+            alert.messageText = "Quit \(AppIdentity.displayName) and Stop Terminal Tasks?"
             verb = "Quit and Stop Tasks"
         case .closeWindow:
             alert.messageText = "Close Window and Stop Terminal Tasks?"

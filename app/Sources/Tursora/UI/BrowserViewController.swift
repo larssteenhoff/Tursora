@@ -647,7 +647,9 @@ final class BrowserViewController: NSViewController, NSMenuDelegate, NSMenuItemV
     func setActiveIndicator(_ active: Bool?) {
         _ = view
         indicatorHeight?.constant = active == nil ? 0 : 3
-        activeIndicator.semanticBackgroundColor = active == true ? .controlAccentColor : .clear
+        // The inactive pane fills the strip with the window surface, so the
+        // split tab above it runs straight into its path bar without a gap.
+        activeIndicator.semanticBackgroundColor = active == true ? .controlAccentColor : .windowBackgroundColor
     }
 
     func prepareSearchDisplay() {

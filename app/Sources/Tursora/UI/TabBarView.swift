@@ -11,6 +11,9 @@ final class TabBarView: NSView {
     static var titleDividerSpan: CGFloat { titleDividerGap * 2 + titleDividerWidth }
 
     var onSelect: ((Int) -> Void)?
+    /// A click on one half of a split tab: the tab index and the pane side
+    /// (0 left, 1 right). Falls back to `onSelect` when unset.
+    var onSelectSide: ((Int, Int) -> Void)?
     var onClose: ((Int) -> Void)?
     var onAdd: (() -> Void)?
     var onMove: ((Int, Int) -> Void)?
@@ -35,6 +38,15 @@ final class TabBarView: NSView {
     private let overflowButton = NSButton()
     private var windowObservers: [NSObjectProtocol] = []
     private var shortcutObserver: NSObjectProtocol?
+    private var preferencesObserver: NSObjectProtocol?
+    /// How tabs are drawn; follows Settings → General → Tab style.
+    var style: AppPreferences.TabStyle = AppPreferences.shared.tabStyle {
+        didSet {
+            guard style != oldValue else { return }
+            refreshAppearance()
+            needsLayout = true
+        }
+    }
     private var revealSelection = true
     private var previousViewportWidth: CGFloat = -1
     private var reloadGeneration = 0
@@ -59,6 +71,8 @@ final class TabBarView: NSView {
         refreshShortcutHint()
         shortcutObserver = NotificationCenter.default.addObserver(forName: .tursoraShortcutsChanged,
             object: AppPreferences.shared.shortcuts, queue: .main) { [weak self] _ in self?.refreshShortcutHint() }
+        preferencesObserver = NotificationCenter.default.addObserver(forName: .tursoraPreferencesChanged,
+            object: AppPreferences.shared, queue: .main) { [weak self] _ in self?.style = AppPreferences.shared.tabStyle }
         configure(overflowButton, symbol: "chevron.down", description: "All Tabs", action: #selector(showOverflow))
         overflowButton.toolTip = "All Tabs"
         overflowButton.isHidden = true
@@ -68,6 +82,7 @@ final class TabBarView: NSView {
     deinit {
         windowObservers.forEach(NotificationCenter.default.removeObserver)
         if let shortcutObserver { NotificationCenter.default.removeObserver(shortcutObserver) }
+        if let preferencesObserver { NotificationCenter.default.removeObserver(preferencesObserver) }
         dragScrollTimer?.invalidate()
         autoActivation?.cancel()
     }
@@ -167,6 +182,11 @@ final class TabBarView: NSView {
         return (palette.background, palette.rail, palette.selectedFill, palette.selectedText, palette.inactiveText)
     }
 
+    func styleColorsForTesting(appearance: NSAppearance, active: Bool) -> (background: NSColor, recessed: NSColor, edge: NSColor, accent: NSColor, text: NSColor, secondaryText: NSColor) {
+        let palette = Self.palette(appearance: appearance, active: active)
+        return (palette.background, palette.recessed, palette.edge, palette.accent, palette.selectedText, palette.inactiveText)
+    }
+
     func titleDividerColorsForTesting(appearance: NSAppearance, active: Bool) -> (selected: NSColor, inactive: NSColor) {
         let palette = Self.palette(appearance: appearance, active: active)
         return (palette.titleDivider, palette.inactiveTitleDivider)
@@ -186,40 +206,127 @@ final class TabBarView: NSView {
             result = TabStripColors(
                 background: base,
                 rail: base.blended(withFraction: dark ? 0.025 : 0.035, of: opaqueLabel) ?? base,
-                selectedFill: base.blended(withFraction: dark ? (active ? 0.13 : 0.075) : (active ? 0.88 : 0.45), of: raisedTarget) ?? base,
+                // The pill in a focused window, darker than it was (0.08 from
+                // 0.13 dark, 0.68 from 0.88 light). 0.08 is about as dark as
+                // the dark pill can go and still clear the appearance check's
+                // minimum contrast with the rail; the unfocused values already
+                // sit near that minimum, so they stay.
+                selectedFill: base.blended(withFraction: dark ? (active ? 0.08 : 0.075) : (active ? 0.68 : 0.45), of: raisedTarget) ?? base,
                 selectedBorder: label.withAlphaComponent(active ? 0.12 : 0.075),
                 selectedText: label,
                 inactiveText: resolved(.secondaryLabelColor),
                 hoverFill: label.withAlphaComponent(dark ? 0.07 : 0.045),
                 divider: label.withAlphaComponent(0.1),
                 titleDivider: label.withAlphaComponent(0.18),
-                inactiveTitleDivider: label.withAlphaComponent(0.12))
+                inactiveTitleDivider: label.withAlphaComponent(0.12),
+                // Folder tabs and Finder-style segments sit on a recessed band;
+                // the selected tab is the window's own surface, so it reads as
+                // part of the path bar beneath it.
+                // Mixed with sRGB black: plain `.black` is a calibrated
+                // colour, and the blend would land in a different space.
+                recessed: base.blended(withFraction: dark ? 0.22 : 0.07,
+                                       of: NSColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)) ?? base,
+                edge: label.withAlphaComponent(dark ? 0.16 : 0.14),
+                accent: resolved(.controlAccentColor))
         }
         return result
     }
 
     override func draw(_ dirtyRect: NSRect) {
         let palette = colors
-        palette.background.setFill()
-        bounds.fill()
         let geometry = layoutForTesting
-        palette.rail.setFill()
-        let railFrame = geometry.viewportFrame.insetBy(dx: 0, dy: 3)
-        NSBezierPath(roundedRect: railFrame, xRadius: railFrame.height / 2, yRadius: railFrame.height / 2).fill()
-        for frame in [geometry.addButtonFrame, geometry.overflowButtonFrame].compactMap({ $0 }) {
+        let bottomRule = NSRect(x: 0, y: 0, width: bounds.width, height: 0.5)
+        switch style {
+        case .pills:
+            palette.background.setFill()
+            bounds.fill()
             palette.rail.setFill()
-            NSBezierPath(ovalIn: frame.insetBy(dx: 1, dy: 1)).fill()
+            let railFrame = geometry.viewportFrame.insetBy(dx: 0, dy: 3)
+            NSBezierPath(roundedRect: railFrame, xRadius: railFrame.height / 2, yRadius: railFrame.height / 2).fill()
+            for frame in [geometry.addButtonFrame, geometry.overflowButtonFrame].compactMap({ $0 }) {
+                palette.rail.setFill()
+                NSBezierPath(ovalIn: frame.insetBy(dx: 1, dy: 1)).fill()
+            }
+            NSColor.separatorColor.withAlphaComponent(0.35).setFill()
+            bottomRule.fill()
+        case .folder:
+            palette.recessed.setFill()
+            bounds.fill()
+            palette.edge.setFill()
+            bottomRule.fill()
+            // The selected tab stands 4 pt above the strip's bottom edge; this
+            // joins it to the path bar so tab and pane read as one surface.
+            if let tab = visibleSelectedTabFrame() {
+                palette.background.setFill()
+                NSRect(x: tab.minX, y: 0, width: tab.width, height: tab.minY + 1).fill()
+                palette.edge.setFill()
+                NSRect(x: tab.minX, y: 0, width: 0.5, height: tab.minY + 1).fill()
+                NSRect(x: tab.maxX - 0.5, y: 0, width: 0.5, height: tab.minY + 1).fill()
+            }
+        case .segments:
+            palette.recessed.setFill()
+            bounds.fill()
+            // Full-height segments: the selected one is the window surface,
+            // and a rule separates every tab from the next.
+            let viewport = scrollView.frame
+            NSGraphicsContext.saveGraphicsState()
+            NSBezierPath(rect: viewport).addClip()
+            if let tab = visibleSelectedTabFrame() {
+                palette.background.setFill()
+                NSRect(x: tab.minX - 2, y: 0, width: tab.width + 4, height: bounds.height).fill()
+            }
+            palette.edge.setFill()
+            for item in items {
+                let frame = convert(item.frame, from: documentView)
+                NSRect(x: frame.maxX + 1.75, y: 0, width: 0.5, height: bounds.height).fill()
+            }
+            NSGraphicsContext.restoreGraphicsState()
+            bottomRule.fill()
+            NSRect(x: 0, y: bounds.height - 0.5, width: bounds.width, height: 0.5).fill()
+        case .underline:
+            palette.background.setFill()
+            bounds.fill()
+            NSColor.separatorColor.withAlphaComponent(0.35).setFill()
+            bottomRule.fill()
         }
-        NSColor.separatorColor.withAlphaComponent(0.35).setFill()
-        NSRect(x: 0, y: 0, width: bounds.width, height: 0.5).fill()
+    }
+
+    /// The selected tab's frame in the strip's coordinates, or nil while it is
+    /// scrolled out of view or being dragged.
+    private func visibleSelectedTabFrame() -> NSRect? {
+        guard items.indices.contains(selectedIndex), dragging !== items[selectedIndex] else { return nil }
+        let frame = convert(items[selectedIndex].frame, from: documentView).intersection(scrollView.frame)
+        return frame.isEmpty ? nil : frame
     }
 
     // MARK: - Layout and overflow
 
     var tabWidth: CGFloat { layoutForTesting.tabWidth }
     var layoutForTesting: TabStripLayout {
-        TabStripLayout(width: bounds.width, height: bounds.height, tabCount: items.count,
-                       naturalTabWidth: naturalTabWidth)
+        let plain = TabStripLayout(width: bounds.width, height: bounds.height, tabCount: items.count,
+                                   naturalTabWidth: naturalTabWidth)
+        guard let stretch = splitStretch(in: plain) else { return plain }
+        return TabStripLayout(width: bounds.width, height: bounds.height, tabCount: items.count,
+                              naturalTabWidth: naturalTabWidth, stretch: stretch)
+    }
+
+    /// Where the selected tab's panes divide, in window coordinates; nil when
+    /// the selected tab is not split. Set by the tabs controller.
+    var splitDividerWindowX: (() -> CGFloat?)?
+
+    /// The selected split tab moves right, keeping its width, until its middle
+    /// — where its divider is — sits over the line between its two panes: the
+    /// left name over the left pane, the right one over the right. Only while
+    /// nothing overflows or is being dragged, and only when the split lies to
+    /// the right of the tab's own middle.
+    private func splitStretch(in plain: TabStripLayout) -> (index: Int, extra: CGFloat)? {
+        guard !plain.isOverflowing, dragging == nil, window != nil,
+              tabTitles.indices.contains(selectedIndex), tabTitles[selectedIndex].isSplit,
+              let windowX = splitDividerWindowX?() else { return nil }
+        let documentX = convert(NSPoint(x: windowX, y: 0), from: nil).x - plain.viewportFrame.minX
+        let slotMiddle = CGFloat(selectedIndex) * plain.tabWidth + plain.tabWidth / 2
+        let extra = documentX - slotMiddle
+        return extra > 0.5 ? (selectedIndex, extra) : nil
     }
 
     /// The width the widest current title needs with nothing truncated. Lets a
@@ -237,11 +344,19 @@ final class TabBarView: NSView {
         documentView.frame = NSRect(x: 0, y: 0, width: geometry.contentWidth, height: bounds.height)
         for (index, item) in items.enumerated() where item !== dragging {
             item.frame = geometry.frameForTab(index)
+            // A stretched split tab draws its divider at the pane split.
+            if let stretch = geometry.stretch, stretch.index == index, let windowX = splitDividerWindowX?() {
+                let documentX = convert(NSPoint(x: windowX, y: 0), from: nil).x - geometry.viewportFrame.minX
+                item.splitDividerX = documentX - item.frame.minX
+            } else {
+                item.splitDividerX = nil
+            }
         }
         addButton.frame = geometry.addButtonFrame
         overflowButton.isHidden = !geometry.isOverflowing
         overflowButton.frame = geometry.overflowButtonFrame ?? .zero
         scroll(to: scrollView.contentView.bounds.minX)
+        needsDisplay = true
         if dragging == nil, revealSelection || resized {
             revealSelectedTab()
             revealSelection = false
@@ -260,6 +375,7 @@ final class TabBarView: NSView {
         let maximum = max(0, documentView.bounds.width - scrollView.contentView.bounds.width)
         scrollView.contentView.scroll(to: NSPoint(x: max(0, min(maximum, offset)), y: 0))
         scrollView.reflectScrolledClipView(scrollView.contentView)
+        if style != .pills && style != .underline { needsDisplay = true }
     }
 
     private func scroll(by delta: CGFloat) { scroll(to: scrollView.contentView.bounds.minX + delta) }
@@ -411,10 +527,23 @@ final class TabBarView: NSView {
 
     // MARK: - Interaction (called by TabItemView)
 
-    fileprivate func select(_ item: TabItemView) {
+    fileprivate func select(_ item: TabItemView, side: Int? = nil) {
         revealSelection = true
         needsLayout = true
-        onSelect?(item.index)
+        if let side, let onSelectSide { onSelectSide(item.index, side) } else { onSelect?(item.index) }
+    }
+
+    /// A real click (mouse down and up) at `x` in strip coordinates on tab `index`.
+    func clickTabForTesting(_ index: Int, atX x: CGFloat) {
+        guard items.indices.contains(index), let window else { return }
+        let item = items[index]
+        let point = convert(NSPoint(x: x, y: item.convert(NSPoint(x: 0, y: item.bounds.midY), to: self).y), to: nil)
+        for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+            guard let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0,
+                                                 windowNumber: window.windowNumber, context: nil, eventNumber: 0,
+                                                 clickCount: 1, pressure: 1) else { continue }
+            if type == .leftMouseDown { item.mouseDown(with: event) } else { item.mouseUp(with: event) }
+        }
     }
     fileprivate func close(_ item: TabItemView) { onClose?(item.index) }
     @objc private func addClicked() { onAdd?() }
@@ -474,6 +603,7 @@ final class TabBarView: NSView {
         var frame = item.frame
         frame.origin.x = max(2, min(documentPoint.x - dragOffset, documentView.bounds.width - frame.width - 2))
         item.frame = frame
+        needsDisplay = true
         guard let target = layoutForTesting.targetIndex(atDocumentX: frame.midX), target != item.index else { return }
         items.remove(at: item.index)
         items.insert(item, at: target)
@@ -507,6 +637,12 @@ struct TabStripColors {
     /// The rule drawn between the two halves of a split tab's name.
     let titleDivider: NSColor
     let inactiveTitleDivider: NSColor
+    /// The band behind folder tabs and Finder-style segments.
+    let recessed: NSColor
+    /// Outlines and rules in the folder and segment styles.
+    let edge: NSColor
+    /// The underline style's selection mark.
+    let accent: NSColor
 }
 
 private final class TabScrollView: NSScrollView {
@@ -580,6 +716,9 @@ private final class TabItemView: NSView {
     private let trailingLabel = TabItemView.makeTitleField()
     /// Set by `layout()`; nil for a tab that is not split.
     private(set) var dividerFrame: NSRect?
+    /// Where the divider must sit, in the tab's own coordinates, when the
+    /// strip lines this split tab up with its panes; nil centres it as usual.
+    var splitDividerX: CGFloat? { didSet { if splitDividerX != oldValue { needsLayout = true; needsDisplay = true } } }
     private let closeButton = NSButton()
     fileprivate var hovered = false {
         didSet { needsDisplay = true; closeButton.isHidden = !hovered }
@@ -625,7 +764,8 @@ private final class TabItemView: NSView {
 
     override func layout() {
         super.layout()
-        closeButton.frame = NSRect(x: 4, y: (bounds.height - 20) / 2, width: 20, height: 20)
+        // Close sits at the trailing end of the tab.
+        closeButton.frame = NSRect(x: bounds.width - 24, y: (bounds.height - 20) / 2, width: 20, height: 20)
         let content = NSRect(x: Self.titleInset, y: (bounds.height - Self.titleHeight) / 2,
                              width: max(0, bounds.width - Self.titleInset * 2), height: Self.titleHeight)
         guard let right = title.right else {
@@ -634,8 +774,22 @@ private final class TabItemView: NSView {
             dividerFrame = nil
             return
         }
-        let text = max(0, content.width - TabBarView.titleDividerSpan)
         let leftNatural = Self.textWidth(title.left), rightNatural = Self.textWidth(right)
+        if let dividerX = splitDividerX {
+            // Lined up with the panes: each name centred over its own side.
+            let gap = TabBarView.titleDividerGap
+            let leftSpace = NSRect(x: content.minX, y: content.minY,
+                                   width: max(0, dividerX - gap - content.minX), height: content.height)
+            let rightStart = dividerX + TabBarView.titleDividerWidth + gap
+            let rightSpace = NSRect(x: rightStart, y: content.minY,
+                                    width: max(0, content.maxX - rightStart), height: content.height)
+            let leftWidth = min(leftNatural, leftSpace.width), rightWidth = min(rightNatural, rightSpace.width)
+            label.frame = NSRect(x: leftSpace.midX - leftWidth / 2, y: content.minY, width: leftWidth, height: content.height)
+            trailingLabel.frame = NSRect(x: rightSpace.midX - rightWidth / 2, y: content.minY, width: rightWidth, height: content.height)
+            dividerFrame = NSRect(x: dividerX, y: 0.5, width: TabBarView.titleDividerWidth, height: max(0, bounds.height - 1))
+            return
+        }
+        let text = max(0, content.width - TabBarView.titleDividerSpan)
         // Each half keeps its natural width while both fit. When they do not, a
         // half that needs less than its share keeps all of it and the other
         // takes the rest, so a short name is never truncated next to a long one.
@@ -681,16 +835,47 @@ private final class TabItemView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let palette = bar.colors
-        let surface = bounds.insetBy(dx: 0.5, dy: 0.5)
-        let path = NSBezierPath(roundedRect: surface, xRadius: surface.height / 2, yRadius: surface.height / 2)
-        if isSelected {
-            palette.selectedFill.setFill(); path.fill()
-            palette.selectedBorder.setStroke(); path.lineWidth = 0.5; path.stroke()
-        } else if hovered {
-            palette.hoverFill.setFill(); path.fill()
-        } else if index > 0 && index - 1 != bar.selectedIndex {
-            palette.divider.setFill()
-            NSRect(x: 0, y: 8, width: 0.5, height: max(0, bounds.height - 16)).fill()
+        let path: NSBezierPath
+        switch bar.style {
+        case .pills:
+            let surface = bounds.insetBy(dx: 0.5, dy: 0.5)
+            path = NSBezierPath(roundedRect: surface, xRadius: surface.height / 2, yRadius: surface.height / 2)
+            if isSelected {
+                palette.selectedFill.setFill(); path.fill()
+                palette.selectedBorder.setStroke(); path.lineWidth = 0.5; path.stroke()
+            } else if hovered {
+                palette.hoverFill.setFill(); path.fill()
+            } else if index > 0 && index - 1 != bar.selectedIndex {
+                palette.divider.setFill()
+                NSRect(x: 0, y: 8, width: 0.5, height: max(0, bounds.height - 16)).fill()
+            }
+        case .folder:
+            path = Self.folderTabPath(in: bounds, radius: 7)
+            if isSelected {
+                palette.background.setFill(); path.fill()
+                // Sides and top only: the bottom stays open onto the path bar.
+                let outline = Self.folderTabPath(in: bounds.insetBy(dx: 0.25, dy: 0), radius: 7, closed: false)
+                palette.edge.setStroke(); outline.lineWidth = 0.5; outline.stroke()
+            } else if hovered {
+                palette.hoverFill.setFill(); path.fill()
+            } else if index > 0 && index - 1 != bar.selectedIndex {
+                palette.divider.setFill()
+                NSRect(x: 0, y: 7, width: 0.5, height: max(0, bounds.height - 14)).fill()
+            }
+        case .segments:
+            // The strip draws the selected segment and the rules full height.
+            path = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 5, yRadius: 5)
+            if hovered && !isSelected { palette.hoverFill.setFill(); path.fill() }
+        case .underline:
+            path = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 6, yRadius: 6)
+            // A lone tab has nothing to be told apart from, so it gets no line.
+            if isSelected && bar.tabTitles.count > 1 {
+                palette.accent.setFill()
+                NSBezierPath(roundedRect: NSRect(x: 10, y: 0, width: max(0, bounds.width - 20), height: 2.5),
+                             xRadius: 1.25, yRadius: 1.25).fill()
+            } else if hovered {
+                palette.hoverFill.setFill(); path.fill()
+            }
         }
         if let dividerFrame {
             (isSelected ? palette.titleDivider : palette.inactiveTitleDivider).setFill()
@@ -700,6 +885,21 @@ private final class TabItemView: NSView {
             NSColor.controlAccentColor.withAlphaComponent(0.18).setFill(); path.fill()
             NSColor.controlAccentColor.setStroke(); path.lineWidth = 2; path.stroke()
         }
+    }
+
+    /// A tab with rounded top corners and a square bottom (the view is not
+    /// flipped, so the top is `maxY`). Open, it leaves out the bottom edge.
+    static func folderTabPath(in rect: NSRect, radius: CGFloat, closed: Bool = true) -> NSBezierPath {
+        let r = min(radius, rect.width / 2, rect.height)
+        let p = NSBezierPath()
+        p.move(to: NSPoint(x: rect.minX, y: rect.minY))
+        p.line(to: NSPoint(x: rect.minX, y: rect.maxY - r))
+        p.appendArc(withCenter: NSPoint(x: rect.minX + r, y: rect.maxY - r), radius: r, startAngle: 180, endAngle: 90, clockwise: true)
+        p.line(to: NSPoint(x: rect.maxX - r, y: rect.maxY))
+        p.appendArc(withCenter: NSPoint(x: rect.maxX - r, y: rect.maxY - r), radius: r, startAngle: 90, endAngle: 0, clockwise: true)
+        p.line(to: NSPoint(x: rect.maxX, y: rect.minY))
+        if closed { p.close() }
+        return p
     }
 
     override func menu(for event: NSEvent) -> NSMenu? { bar.menuForTab?(index) }
@@ -725,8 +925,13 @@ private final class TabItemView: NSView {
     }
     override func mouseUp(with event: NSEvent) {
         if didDrag { bar.endDrag(windowPoint: event.locationInWindow) }
-        else if dragStart != nil { bar.select(self) }
+        else if dragStart != nil { bar.select(self, side: side(at: event)) }
         dragStart = nil; didDrag = false
+    }
+    /// Which half of a split tab the click landed on, split at the divider.
+    private func side(at event: NSEvent) -> Int? {
+        guard title.isSplit, let divider = dividerFrame else { return nil }
+        return convert(event.locationInWindow, from: nil).x < divider.midX ? 0 : 1
     }
     override func otherMouseDown(with event: NSEvent) {
         if event.buttonNumber == 2 { bar.close(self) } else { super.otherMouseDown(with: event) }

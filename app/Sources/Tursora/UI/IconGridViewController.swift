@@ -508,10 +508,10 @@ final class FileCollectionView: NSCollectionView {
         super.keyDown(with: event)
     }
 
-    /// ⌘-scroll zooms (Dolphin's Ctrl-wheel); ordinary scrolling passes through.
+    /// ⌘- or ⌃-scroll zooms (Dolphin's Ctrl-wheel); ordinary scrolling passes through.
     override func scrollWheel(with event: NSEvent) {
-        guard event.modifierFlags.contains(.command) else { return super.scrollWheel(with: event) }
-        if let step = zoomGesture.step(scrollingDeltaY: event.scrollingDeltaY) { onZoom?(step) }
+        guard ZoomGestureAccumulator.isZoomScroll(event.modifierFlags) else { return super.scrollWheel(with: event) }
+        if let step = zoomGesture.step(scroll: event) { onZoom?(step) }
     }
 
     override func magnify(with event: NSEvent) {

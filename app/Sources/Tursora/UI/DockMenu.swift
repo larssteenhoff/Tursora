@@ -2,7 +2,7 @@ import AppKit
 
 enum DockMenu {
     static func make(target: AppDelegate, directories: DockMenuDirectories) -> NSMenu {
-        let menu = NSMenu(title: "Tursora")
+        let menu = NSMenu(title: AppIdentity.displayName)
         menu.autoenablesItems = false
         for command in DockMenuCommand.allCases {
             if command == .downloads { menu.addItem(.separator()) }

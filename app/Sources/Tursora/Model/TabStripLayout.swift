@@ -23,11 +23,17 @@ struct TabStripLayout {
     /// True when the tabs do not fill the strip and New Tab sits right after
     /// them instead of at the trailing edge.
     let addButtonFollowsTabs: Bool
+    /// Space opened before one tab, which moves that tab and every later one
+    /// right by `extra`; all tabs keep the same width. Used to put a split
+    /// tab's divider over the line between its two panes. Never applied while
+    /// overflowing.
+    let stretch: (index: Int, extra: CGFloat)?
 
     /// `naturalTabWidth` is the width the widest title would need with nothing
     /// truncated, measured by the view. Zero means "unmeasured", which settles
     /// every tab at `preferredTabWidth` or below.
-    init(width: CGFloat, height: CGFloat = 36, tabCount: Int, naturalTabWidth: CGFloat = 0) {
+    init(width: CGFloat, height: CGFloat = 36, tabCount: Int, naturalTabWidth: CGFloat = 0,
+         stretch requested: (index: Int, extra: CGFloat)? = nil) {
         self.tabCount = max(0, tabCount)
         let width = max(0, width), height = max(0, height)
         let inset = min(Self.horizontalInset, width / 2)
@@ -55,7 +61,15 @@ struct TabStripLayout {
             let wanted = min(Self.maximumTabWidth, max(Self.preferredTabWidth, max(0, naturalTabWidth)))
             tabWidth = max(Self.minimumTabWidth, min(fairShare, wanted))
         }
-        let tabsWidth = tabWidth * CGFloat(self.tabCount)
+        var tabsWidth = tabWidth * CGFloat(self.tabCount)
+        // The gap only spends room the strip has spare.
+        if let requested, !overflowing, (0..<self.tabCount).contains(requested.index), requested.extra > 0 {
+            let extra = min(requested.extra, max(0, available - tabsWidth))
+            stretch = extra > 0 ? (requested.index, extra) : nil
+            tabsWidth += extra > 0 ? extra : 0
+        } else {
+            stretch = nil
+        }
         // Pinning New Tab to the far edge of a half-empty strip puts it nowhere
         // near the tabs it adds to, so it follows them instead (D79).
         addButtonFollowsTabs = self.tabCount > 0 && !overflowing && tabsWidth < available
@@ -70,12 +84,17 @@ struct TabStripLayout {
 
     func frameForTab(_ index: Int) -> CGRect {
         guard (0..<tabCount).contains(index) else { return .zero }
-        return CGRect(x: CGFloat(index) * tabWidth + 2, y: 4,
-                      width: max(0, tabWidth - 4), height: max(0, viewportFrame.height - 8))
+        var x = CGFloat(index) * tabWidth
+        let width = tabWidth
+        if let stretch, index >= stretch.index { x += stretch.extra }
+        return CGRect(x: x + 2, y: 4, width: max(0, width - 4), height: max(0, viewportFrame.height - 8))
     }
 
     func targetIndex(atDocumentX x: CGFloat) -> Int? {
         guard tabCount > 0, tabWidth > 0 else { return nil }
-        return max(0, min(tabCount - 1, Int(max(0, x) / tabWidth)))
+        guard stretch != nil else { return max(0, min(tabCount - 1, Int(max(0, x) / tabWidth))) }
+        // Slots are no longer equal: the first slot whose right edge passes x.
+        for index in 0..<tabCount where x < frameForTab(index).maxX + 2 { return index }
+        return tabCount - 1
     }
 }

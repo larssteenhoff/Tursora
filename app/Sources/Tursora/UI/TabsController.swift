@@ -10,6 +10,8 @@ final class TabsController: NSViewController {
     weak var host: BrowserHost? { didSet { pages.forEach { $0.host = host } } }
 
     let tabBar = TabBarView()
+    private var splitResizeObserver: NSObjectProtocol?
+    deinit { if let splitResizeObserver { NotificationCenter.default.removeObserver(splitResizeObserver) } }
     /// Window shortcuts address the active pane's own navigator.
     var addressBar: BreadcrumbBar { current.addressBar }
     private let container = NSView()
@@ -43,6 +45,23 @@ final class TabsController: NSViewController {
         self.host = host
         super.init(nibName: nil, bundle: nil)
         tabBar.onSelect = { [weak self] i in self?.selectTab(at: i) }
+        tabBar.onSelectSide = { [weak self] i, side in self?.selectTab(at: i, side: side) }
+        // The selected split tab lines its divider up with the pane split.
+        tabBar.splitDividerWindowX = { [weak self] in
+            guard let self, self.pages.indices.contains(self.currentIndex) else { return nil }
+            let page = self.pages[self.currentIndex]
+            guard page.isSplit, page.view.window != nil, !page.view.isHidden,
+                  let left = page.splitView.subviews.first, page.splitView.subviews.count >= 2 else { return nil }
+            let x = left.frame.maxX + page.splitView.dividerThickness / 2
+            return page.splitView.convert(NSPoint(x: x, y: 0), to: nil).x
+        }
+        splitResizeObserver = NotificationCenter.default.addObserver(
+            forName: NSSplitView.didResizeSubviewsNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self, let split = note.object as? NSSplitView,
+                  self.pages.indices.contains(self.currentIndex),
+                  split === self.pages[self.currentIndex].splitView else { return }
+            self.tabBar.needsLayout = true
+        }
         tabBar.onClose = { [weak self] i in
             guard let self, self.pages.indices.contains(i) else { return }
             self.performTabAction(.close, on: self.pages[i])
@@ -213,6 +232,17 @@ final class TabsController: NSViewController {
         let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         page.customTitle = trimmed.isEmpty ? nil : trimmed
         refreshChrome()
+    }
+
+    /// Selects a tab and, when it is split, the pane on the clicked side.
+    func selectTab(at index: Int, side: Int) {
+        selectTab(at: index)
+        guard pages.indices.contains(index), currentIndex == index, currentPage.isSplit,
+              currentPage.panes.indices.contains(side) else { return }
+        let pane = currentPage.panes[side]
+        currentPage.activate(pane)
+        view.window?.makeFirstResponder(pane.focusView)
+        afterPaneChange()
     }
 
     func selectNext() { selectTab(at: (currentIndex + 1) % pages.count) }

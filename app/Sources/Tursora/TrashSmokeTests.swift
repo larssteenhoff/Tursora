@@ -178,7 +178,7 @@ enum TrashSmokeTests: SmokeSuite {
               && TrashOrigins.PutBack.unknownOrigin.destination == nil)
         check("available has no reason and every refusal explains itself",
               TrashOrigins.PutBack.available(origin).reason == nil
-              && TrashOrigins.PutBack.unknownOrigin.reason?.contains("Tursora moved to the Trash") == true
+              && TrashOrigins.PutBack.unknownOrigin.reason?.contains("\(AppIdentity.displayName) moved to the Trash") == true
               && TrashOrigins.PutBack.missingParent(parent).reason?.contains("“parent”") == true
               && TrashOrigins.PutBack.nameTaken(origin).reason?.contains("“report.pdf”") == true)
     }
@@ -422,7 +422,7 @@ enum TrashSmokeTests: SmokeSuite {
         await waitUntil("\(mode) the stranger is selected") { browser.fileView.selectedItems.map(\.name) == ["stranger.txt"] }
         let unknown = browser.putBackEnablement(for: [trash.appendingPathComponent("stranger.txt")])
         check("\(mode): an item Tursora never trashed has Put Back disabled with a reason",
-              !unknown.enabled && unknown.tooltip?.contains("Only items Tursora moved to the Trash") == true,
+              !unknown.enabled && unknown.tooltip?.contains("Only items \(AppIdentity.displayName) moved to the Trash") == true,
               unknown.tooltip ?? "nil")
         let taken = browser.putBackEnablement(for: [trash.appendingPathComponent("c.txt")])
         check("\(mode): a retaken name disables Put Back with its own reason",

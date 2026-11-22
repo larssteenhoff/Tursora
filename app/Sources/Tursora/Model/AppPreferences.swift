@@ -25,6 +25,33 @@ enum AppPreferences {
         set { shared.experimentalZIPBrowsingEnabled = newValue }
     }
     static var filterShortcut: Shortcut { shared.filterShortcut }
+    static var tabStyle: TabStyle {
+        get { shared.tabStyle }
+        set { shared.tabStyle = newValue }
+    }
+
+    /// How the tab strip draws its tabs (Settings → General → Tab style).
+    enum TabStyle: String, CaseIterable {
+        /// Rounded-top tabs; the selected one joins the path bar below it.
+        case folder
+        /// Flat segments divided by thin rules; the selected one is lighter.
+        case segments
+        /// Plain titles; an accent line marks the selected tab.
+        case underline
+        /// Rounded pills on a rail — the original look.
+        case pills
+
+        static let `default`: TabStyle = .folder
+
+        var title: String {
+            switch self {
+            case .folder: return "Folder Tabs"
+            case .segments: return "Finder Style"
+            case .underline: return "Underline"
+            case .pills: return "Pills"
+            }
+        }
+    }
 
     struct Shortcut: Equatable {
         let keyEquivalent: String
@@ -91,6 +118,7 @@ enum AppPreferences {
             static let workspace = "restoreWorkspaceOnLaunch"
             static let terminal = "experimentalTerminalEnabled"
             static let zip = "experimentalZIPBrowsingEnabled"
+            static let tabStyle = "tabStyle"
             static let shortcutKey = "filterShortcutKey"
             static let shortcutModifiers = "filterShortcutModifiers"
         }
@@ -119,6 +147,16 @@ enum AppPreferences {
         var experimentalZIPBrowsingEnabled: Bool {
             get { defaults.object(forKey: Key.zip) == nil ? true : defaults.bool(forKey: Key.zip) }
             set { set(newValue, forKey: Key.zip, oldValue: experimentalZIPBrowsingEnabled) }
+        }
+        /// An unknown stored value (a style from a newer build) falls back to
+        /// the default rather than failing.
+        var tabStyle: TabStyle {
+            get { defaults.string(forKey: Key.tabStyle).flatMap(TabStyle.init(rawValue:)) ?? .default }
+            set {
+                let old = tabStyle
+                defaults.set(newValue.rawValue, forKey: Key.tabStyle)
+                if old != newValue { notify() }
+            }
         }
         var filterShortcut: Shortcut {
             shortcuts.shortcut(for: ShortcutCatalog.filterID) ?? Shortcut(keyEquivalent: "", modifierFlags: [])

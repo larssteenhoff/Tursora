@@ -379,6 +379,32 @@ enum ColumnViewSmokeTests: SmokeSuite {
                 check("the browser hands back a loaded cell to inspect", false)
             }
 
+            // Rows are read back as the browser itself draws them, not by
+            // drawing a detached cell: the row's title is centred by
+            // `ColumnRowCell`, the class the browser instantiates, and only the
+            // browser's own drawing proves that class is the one in use.
+            check("the browser draws its rows with the centring ColumnRowCell",
+                  columns.browser.loadedCell(atRow: max(0, topRow2), column: 0) is ColumnRowCell,
+                  String(describing: columns.browser.loadedCell(atRow: max(0, topRow2), column: 0).map { type(of: $0) }))
+            func rowPixels(row: Int) -> (rep: NSBitmapImageRep, scale: Int)? {
+                let browser = columns.browser
+                browser.layoutSubtreeIfNeeded()
+                let frame = browser.frame(ofRow: row, inColumn: 0)
+                guard frame.height > 0,
+                      let rep = browser.bitmapImageRepForCachingDisplay(in: frame) else { return nil }
+                browser.cacheDisplay(in: frame, to: rep)
+                return (rep, max(1, Int((CGFloat(rep.pixelsHigh) / frame.height).rounded())))
+            }
+            /// Pixels that differ from the row's own ground, sampled at its
+            /// top-left corner where neither the icon nor the name reaches.
+            func isInk(_ rep: NSBitmapImageRep, _ x: Int, _ y: Int, ground: NSColor) -> Bool {
+                guard let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB),
+                      let g = ground.usingColorSpace(.sRGB) else { return false }
+                return abs(c.redComponent - g.redComponent) > 0.15
+                    || abs(c.greenComponent - g.greenComponent) > 0.15
+                    || abs(c.blueComponent - g.blueComponent) > 0.15
+            }
+
             // A column narrower than the name must truncate it, not drop it.
             // The cell's default is to wrap and a filename is one unbreakable
             // word, so the line breaks after the icon and a single-line cell
@@ -386,44 +412,88 @@ enum ColumnViewSmokeTests: SmokeSuite {
             // because nothing about the string itself reveals this: the
             // attributed value is identical either way.
             func nameInk(row: Int, atColumnWidth width: CGFloat) -> Int {
-                guard let cell = columns.browser.loadedCell(atRow: row, column: 0) as? NSCell
-                else { return -1 }
-                let h = 24, w = Int(width)
-                guard let rep = NSBitmapImageRep(
-                        bitmapDataPlanes: nil, pixelsWide: w, pixelsHigh: h,
-                        bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-                        colorSpaceName: .deviceRGB, bytesPerRow: w * 4, bitsPerPixel: 32),
-                      let context = NSGraphicsContext(bitmapImageRep: rep) else { return -1 }
-                NSGraphicsContext.saveGraphicsState()
-                NSGraphicsContext.current = context
-                // Magenta: a ground no label or icon colour collides with.
-                NSColor(srgbRed: 1, green: 0, blue: 1, alpha: 1).setFill()
-                NSRect(x: 0, y: 0, width: width, height: 24).fill()
-                cell.draw(withFrame: NSRect(x: 0, y: 0, width: width, height: 24),
-                          in: NSView(frame: NSRect(x: 0, y: 0, width: width, height: 24)))
-                NSGraphicsContext.restoreGraphicsState()
-                guard let bytes = rep.bitmapData else { return -1 }
+                columns.browser.setWidth(width, ofColumn: 0)
+                guard let (rep, scale) = rowPixels(row: row),
+                      let ground = rep.colorAt(x: 0, y: 0) else { return -1 }
+                let side = Int(max(12, columns.iconSize - 4))
                 var ink = 0
-                for y in 0..<h {
-                    for x in 22..<w where !(bytes[(y * w + x) * 4] > 240
-                                            && bytes[(y * w + x) * 4 + 1] < 15
-                                            && bytes[(y * w + x) * 4 + 2] > 240) { ink += 1 }
+                for y in 0..<rep.pixelsHigh {
+                    for x in ((side + 4) * scale)..<rep.pixelsWide where isInk(rep, x, y, ground: ground) { ink += 1 }
                 }
-                return ink
+                return ink / (scale * scale)
             }
             // Measured against the long name: `top.txt` fits at 70 pt, so a
             // check using it passes whether or not the bug is present. That is
             // how the first version of this check failed its own mutation test.
             let longRow = pane.model.nodes.firstIndex { $0.item.name == longName } ?? -1
             if longRow >= 0 {
+                let savedWidth = columns.browser.width(ofColumn: 0)
                 let wide = nameInk(row: longRow, atColumnWidth: 320)
                 let narrow = nameInk(row: longRow, atColumnWidth: 90)
+                columns.browser.setWidth(savedWidth, ofColumn: 0)
                 check("a column too narrow for the name still draws it, truncated",
                       narrow > 30 && wide > 30 && narrow < wide,
                       "ink at 320pt=\(wide), at 90pt=\(narrow)")
             } else {
                 check("the fixture has a name too long for a narrow column", false)
             }
+
+            // The icon and the name sit on the row's vertical centre, where the
+            // selection highlight and the folder chevron are drawn. A single-line
+            // text cell is top-anchored on its own 13 pt font, so without the
+            // centring the name hugged the top of every row and a large icon
+            // hung above it — clipped at the row's top edge, which is why ink
+            // touching that edge fails the check as well as unequal margins.
+            func inkSpan(row: Int, xRange: Range<Int>) -> (top: CGFloat, bottom: CGFloat)? {
+                guard let (rep, scale) = rowPixels(row: row),
+                      let ground = rep.colorAt(x: 0, y: 0) else { return nil }
+                var first = -1, last = -1
+                for y in 0..<rep.pixelsHigh
+                where xRange.contains(where: { isInk(rep, $0 * scale, y, ground: ground) }) {
+                    if first < 0 { first = y }
+                    last = y
+                }
+                guard first >= 0 else { return nil }
+                return (CGFloat(first) / CGFloat(scale),
+                        CGFloat(rep.pixelsHigh - 1 - last) / CGFloat(scale))
+            }
+            let savedIconSize = columns.iconSize
+            // The long name: "quarterly-…" has both ascenders and descenders,
+            // so its ink box is close to even about the cap-height midpoint
+            // (a short name like `top` has neither tall letters nor balance).
+            let measuredRow = pane.model.nodes.firstIndex { $0.item.name == longName } ?? -1
+            if measuredRow >= 0 {
+                for size in [CGFloat(16), 22, 32] {
+                    columns.setIconSize(size, showPreviews: columns.showPreviews)
+                    let side = Int(max(12, size - 4))
+                    // Where the row's content starts: the browser insets it,
+                    // so the icon's left edge is found rather than assumed.
+                    var left = 0
+                    if let (rep, scale) = rowPixels(row: measuredRow), let ground = rep.colorAt(x: 0, y: 0) {
+                        left = (0..<(rep.pixelsWide / scale)).first { x in
+                            (0..<rep.pixelsHigh).contains { isInk(rep, x * scale, $0, ground: ground) }
+                        } ?? 0
+                    }
+                    let icon = inkSpan(row: measuredRow, xRange: left..<(left + side - 2))
+                    let name = inkSpan(row: measuredRow, xRange: (left + side + 6)..<(left + side + 70))
+                    let centred = { (s: (top: CGFloat, bottom: CGFloat)?) -> Bool in
+                        guard let s else { return false }
+                        return s.top >= 1 && s.bottom >= 1 && abs(s.top - s.bottom) <= 2
+                    }
+                    // Centred on its cap height, the name's ink sits a little
+                    // low: descenders reach further below the baseline than the
+                    // gap left above the letters. So the top gap may exceed the
+                    // bottom one by a few points, but must never be the smaller
+                    // — the bug drew the name 4 pt from the top of a 34 pt row,
+                    // 21 pt from its bottom.
+                    let nameCentred = name.map { $0.top >= 1 && $0.bottom >= 1
+                        && (-1...5).contains($0.top - $0.bottom) } ?? false
+                    check("at icon size \(Int(size)) the column row's icon and name are vertically centred",
+                          centred(icon) && nameCentred,
+                          "rowHeight=\(columns.browser.rowHeight) icon=\(String(describing: icon)) name=\(String(describing: name))")
+                }
+            }
+            columns.setIconSize(savedIconSize, showPreviews: columns.showPreviews)
 
             // Dimming was the third thing the broken cast disabled, and nothing
             // read it back: cutURLs was always empty at probe time.

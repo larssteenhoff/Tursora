@@ -92,6 +92,15 @@ enum SettingsSmokeTests: SmokeSuite {
         controller.toggleZIPBrowsing(controller.zipCheckbox)
         check("settings UI: controls apply all three settings immediately",
               store.showFileExtensions && store.experimentalTerminalEnabled && store.experimentalZIPBrowsingEnabled)
+        check("settings UI: Tab Style lists the four styles and shows the stored one",
+              controller.tabStylePopUp.itemTitles == AppPreferences.TabStyle.allCases.map(\.title)
+              && controller.tabStylePopUp.indexOfSelectedItem == AppPreferences.TabStyle.allCases.firstIndex(of: store.tabStyle))
+        controller.tabStylePopUp.selectItem(withTitle: "Underline")
+        controller.changeTabStyle(controller.tabStylePopUp)
+        check("settings UI: choosing a tab style applies it immediately", store.tabStyle == .underline)
+        controller.tabStylePopUp.selectItem(withTitle: "Pills")
+        controller.changeTabStyle(controller.tabStylePopUp)
+        check("settings UI: the original pills remain a choice", store.tabStyle == .pills)
         check("settings UI: startup option initially reflects the stored preference", controller.restoreWorkspaceCheckbox.state == .on)
         controller.restoreWorkspaceCheckbox.performClick(nil)
         check("settings UI: startup action persists and refreshes its control", !restored.restoreWorkspaceOnLaunch && controller.restoreWorkspaceCheckbox.state == .off)
@@ -162,7 +171,7 @@ enum SettingsSmokeTests: SmokeSuite {
         check("handler: the status names the application that opens folders",
               DefaultFileManager.statusText(isCurrent: false, currentName: "Finder") == "Folders open in Finder.")
         check("handler: it says so plainly once Tursora holds the role",
-              DefaultFileManager.statusText(isCurrent: true, currentName: "Tursora") == "Tursora opens folders.")
+              DefaultFileManager.statusText(isCurrent: true, currentName: AppIdentity.displayName) == "\(AppIdentity.displayName) opens folders.")
         check("handler: an unknown handler still produces a sentence, not an empty line",
               DefaultFileManager.statusText(isCurrent: false, currentName: nil) == "Folders open in another application."
                   && DefaultFileManager.statusText(isCurrent: false, currentName: "") == "Folders open in another application.")
@@ -225,7 +234,7 @@ enum SettingsSmokeTests: SmokeSuite {
         // Either a status sentence, or — when the application is somewhere
         // LaunchServices will not register — the reason, so the user is not
         // left with the system's "The file couldn't be opened."
-        let statusSentence = ["Tursora opens folders.", "Folders open in another application."].contains(line)
+        let statusSentence = ["\(AppIdentity.displayName) opens folders.", "Folders open in another application."].contains(line)
             || (line.hasPrefix("Folders open in ") && line.hasSuffix("."))
         let problemShown = DefaultFileManager.locationProblem().map { line == $0.explanation } ?? false
         check("handler: the settings line is a status sentence, or says why it cannot be set",
@@ -251,9 +260,9 @@ enum SettingsSmokeTests: SmokeSuite {
         // Button and line are two separate outputs of the same state; checking
         // them against each other catches a drift that re-deriving isCurrent()
         // in the assertion cannot, because that only compares code with itself.
-        let claimsTheRole = line == "Tursora opens folders."
+        let claimsTheRole = line == "\(AppIdentity.displayName) opens folders."
         check("handler: the button agrees with the line it sits under",
-              title == (claimsTheRole ? "Tursora Is the Default" : "Set Tursora as Default")
+              title == (claimsTheRole ? "\(AppIdentity.displayName) Is the Default" : "Set \(AppIdentity.displayName) as Default")
                   && controller.defaultFileManagerButton.isEnabled == (!claimsTheRole && !problemShown),
               "line=\(line) title=\(title) enabled=\(controller.defaultFileManagerButton.isEnabled)")
         // A push button stretched to the pane's width reads as a banner, with

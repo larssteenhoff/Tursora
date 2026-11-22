@@ -186,8 +186,8 @@ Detach starts fresh navigation histories, selections, filters and scroll positio
 | Double-click | Open |
 | Mouse buttons 4/5 | Back / forward (window-level monitor) |
 | Two-finger page swipe | Right-to-left = forward, left-to-right = back |
-| ⌘-scroll (≥ 8 accumulated) / pinch (≥ 0.12) | Zoom (stands in for Dolphin's Ctrl-wheel) |
-| Status-bar slider | Zoom steps; tooltip "Icon size (⌘-scroll or pinch to zoom)" |
+| ⌘- or ⌃-scroll / pinch (≥ 0.12) | Zoom by the slider's steps: one step per mouse-wheel notch, or per 8 pt of accumulated trackpad scrolling (⌃ is Dolphin's Ctrl-wheel; macOS Accessibility zoom can claim ⌃-scroll first when "Use scroll gesture with modifier keys to zoom" is on) |
+| Status-bar slider | Zoom steps; tooltip "Icon size (⌘- or ⌃-scroll, or pinch, to zoom)" |
 | Single click on the **name** of the sole selected row (list) | Rename after `NSEvent.doubleClickInterval`; cancelled by a double-click, a drag session, pointer travel > 3 pt, or a selection change |
 | Toolbar back/forward | Click navigates; 0.35 s long-press or right-click shows the history menu |
 | Right-click in the grid | Selects the clicked item if it wasn't selected |

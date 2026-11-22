@@ -119,17 +119,17 @@ enum MainMenu {
     }
 
     private static func appMenu() -> NSMenuItem {
-        let (item, menu) = submenu("Tursora")
-        add(menu, "About Tursora", #selector(NSApplication.orderFrontStandardAboutPanel(_:)))
+        let (item, menu) = submenu(AppIdentity.displayName)
+        add(menu, "About \(AppIdentity.displayName)", #selector(NSApplication.orderFrontStandardAboutPanel(_:)))
         add(menu, "Check for Updates…", #selector(AppDelegate.checkForUpdates(_:)))
         menu.addItem(.separator())
         add(menu, "Settings…", #selector(AppDelegate.showSettings(_:)), ",")
         menu.addItem(.separator())
-        add(menu, "Hide Tursora", #selector(NSApplication.hide(_:)), "h")
+        add(menu, "Hide \(AppIdentity.displayName)", #selector(NSApplication.hide(_:)), "h")
         add(menu, "Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option])
         add(menu, "Show All", #selector(NSApplication.unhideAllApplications(_:)))
         menu.addItem(.separator())
-        add(menu, "Quit Tursora", #selector(NSApplication.terminate(_:)), "q")
+        add(menu, "Quit \(AppIdentity.displayName)", #selector(NSApplication.terminate(_:)), "q")
         return item
     }
 

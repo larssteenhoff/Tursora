@@ -19,12 +19,12 @@ import AppKit
 /// The one thing a plain `NSBrowser` cannot do for us: the zoom gestures every
 /// file view supports arrive at the browser, not at its view controller.
 final class ColumnBrowser: NSBrowser {
-    var onCommandScroll: ((CGFloat) -> Void)?
+    var onZoomScroll: ((NSEvent) -> Void)?
     var onMagnify: ((CGFloat) -> Void)?
     /// Escape aborted an inline rename; the controller clears its flag.
     var onRenameAborted: (() -> Void)?
     override func scrollWheel(with event: NSEvent) {
-        if event.modifierFlags.contains(.command) { onCommandScroll?(event.scrollingDeltaY) }
+        if ZoomGestureAccumulator.isZoomScroll(event.modifierFlags) { onZoomScroll?(event) }
         else { super.scrollWheel(with: event) }
     }
     override func magnify(with event: NSEvent) { onMagnify?(event.magnification) }
@@ -47,6 +47,95 @@ final class ColumnBrowser: NSBrowser {
             // implementation to call, so hand it on with tryToPerform.
             nextResponder?.tryToPerform(#selector(NSResponder.cancelOperation(_:)), with: sender)
         }
+    }
+}
+
+/// A column row that draws its title — icon attachment and name — centred on
+/// the row, where NSBrowser draws the selection highlight and the folder
+/// chevron.
+///
+/// The stock cell lays a single line out top-anchored, with the baseline one
+/// ascender of the cell's own 13 pt font below the row top, and clips the line
+/// to that font's box. Measured on an item-mode browser at the larger zoom
+/// levels: the name sat 4 pt from the top of a 50 pt row and the icon was cut
+/// off at the row's top edge, so the highlight looked shifted down against its
+/// content. Moving the line inside the stock drawing does not help: a baseline
+/// offset or a shifted title rect only moves the clip box with it, cutting the
+/// icon off in a new place. So the title is drawn here instead, and the stock
+/// cell still draws the highlight and the chevron.
+///
+/// `setCellClass(NSBrowserCell.self)` is ignored in item mode, but a subclass
+/// is honoured — measured: `willDisplayCell` and drawing both receive this class.
+final class ColumnRowCell: NSBrowserCell {
+    // The cell the browser makes for itself is editable; a plain
+    // `NSBrowserCell` is not, and `editItem` then opens no inline editor at
+    // all. Whether a row may be renamed is still the delegate's answer
+    // (`browser(_:shouldEditItem:)`), not the cell's.
+    override init(textCell string: String) {
+        super.init(textCell: string)
+        isEditable = true
+    }
+    override init(imageCell image: NSImage?) {
+        super.init(imageCell: image)
+        isEditable = true
+    }
+    required init(coder: NSCoder) {
+        super.init(coder: coder)
+        isEditable = true
+    }
+
+    override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
+        let title = attributedStringValue
+        guard title.length > 0 else { return super.drawInterior(withFrame: cellFrame, in: controlView) }
+        // The icon is the title's leading attachment (`iconAttachment`). It is
+        // drawn here as an image, apart from the name: a string that starts
+        // with an attachment and truncates in the middle draws nothing at all
+        // once the column is too narrow — measured, not even the icon.
+        var x = cellFrame.minX + 2                      // the stock title inset
+        var nameStart = 0
+        if let attachment = title.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment {
+            nameStart = 1
+            let size = attachment.bounds.size
+            if let image = attachment.image, size.width > 0, size.height > 0 {
+                let rect = NSRect(x: x, y: cellFrame.midY - size.height / 2, width: size.width, height: size.height)
+                image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1,
+                           respectFlipped: true, hints: nil)
+            }
+            x += size.width
+        }
+        guard nameStart < title.length else { return }
+        let name = NSMutableAttributedString(attributedString: title.attributedSubstring(
+            from: NSRange(location: nameStart, length: title.length - nameStart)))
+        let whole = NSRange(location: 0, length: name.length)
+        // Drawn directly, the string ignores the cell's line break mode, so the
+        // middle truncation the list view and Finder use rides on the string.
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingMiddle
+        name.addAttribute(.paragraphStyle, value: paragraph, range: whole)
+        // On an emphasized (focused, selected) row the stock cell turns label
+        // colours light; drawing the string ourselves has to do the same.
+        if backgroundStyle == .emphasized {
+            name.enumerateAttribute(.foregroundColor, in: whole) { value, range, _ in
+                guard let colour = value as? NSColor else { return }
+                let light = NSColor.alternateSelectedControlTextColor
+                if colour == .labelColor {
+                    name.addAttribute(.foregroundColor, value: light, range: range)
+                } else if colour == .secondaryLabelColor {
+                    name.addAttribute(.foregroundColor, value: light.withAlphaComponent(0.7), range: range)
+                }
+            }
+        }
+        // The name's cap-height midpoint goes on the row's centre, level with
+        // the icon's (`controlView` is flipped, as NSBrowser's rows are).
+        let font = name.attribute(.font, at: 0, effectiveRange: nil) as? NSFont ?? self.font ?? .systemFont(ofSize: 13)
+        let baseline = cellFrame.midY + font.capHeight / 2
+        // A folder row keeps the chevron's width clear so a long name
+        // truncates before it.
+        let chevron: CGFloat = isLeaf ? 0 : 14
+        let rect = NSRect(x: x, y: baseline - font.ascender,
+                          width: max(0, cellFrame.maxX - 2 - chevron - x),
+                          height: font.ascender - font.descender)
+        name.draw(with: rect, options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
     }
 }
 
@@ -166,8 +255,8 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
         // delegate must be in place from construction, not from loadView.
         browser.delegate = self
         browser.onRenameAborted = { [weak self] in self?.endRename(commit: false) }
-        browser.onCommandScroll = { [weak self] delta in
-            guard let self, let step = self.zoomGesture.step(scrollingDeltaY: delta) else { return }
+        browser.onZoomScroll = { [weak self] event in
+            guard let self, let step = self.zoomGesture.step(scroll: event) else { return }
             self.onZoomGesture?(step)
         }
         browser.onMagnify = { [weak self] amount in
@@ -182,7 +271,7 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
 
     deinit { preview.shutdown(); if let scrollMonitor { NSEvent.removeMonitor(scrollMonitor) } }
 
-    /// ⌘-scroll zooms in every file view. A column that overflows consumes
+    /// ⌘- or ⌃-scroll zooms in every file view. A column that overflows consumes
     /// the wheel in its own scroll view before the browser sees it, so the
     /// event is taken one step earlier, only for this window and this view.
     private var scrollMonitor: Any?
@@ -193,10 +282,10 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
             // A background tab's column view keeps its window and its geometry
             // (tabs are hidden, not removed), so it would otherwise zoom itself
             // and swallow the wheel meant for the visible pane.
-            guard let self, event.modifierFlags.contains(.command), event.window === self.view.window,
+            guard let self, ZoomGestureAccumulator.isZoomScroll(event.modifierFlags), event.window === self.view.window,
                   !self.view.isHiddenOrHasHiddenAncestor,
                   self.browser.bounds.contains(self.browser.convert(event.locationInWindow, from: nil)) else { return event }
-            if let step = self.zoomGesture.step(scrollingDeltaY: event.scrollingDeltaY) { self.onZoomGesture?(step) }
+            if let step = self.zoomGesture.step(scroll: event) { self.onZoomGesture?(step) }
             return nil
         }
     }
@@ -236,7 +325,7 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
         browser.maxVisibleColumns = 6                     // Finder's ColumnView.nib
         browser.takesTitleFromPreviousColumn = false
         browser.isTitled = false
-        browser.setCellClass(NSBrowserCell.self)
+        browser.setCellClass(ColumnRowCell.self)          // draws the title centred on the row
         browser.registerForDraggedTypes([.fileURL, ArchiveEntryPromiseProvider.internalType])
         updateDragMasks()
         view.addSubview(browser)
@@ -627,8 +716,9 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
     }
 
     /// An item-based `NSBrowser` draws its rows with `NSTextFieldCell`, not
-    /// `NSBrowserCell` — `setCellClass` and `cellPrototype` are both ignored in
-    /// this mode, measured. A text cell has no `image`, so the icon is an
+    /// `NSBrowserCell` — `setCellClass(NSBrowserCell.self)` and `cellPrototype`
+    /// are both ignored in this mode, measured (a *subclass* is honoured; see
+    /// `ColumnRowCell`). The row is drawn as a title, so the icon is an
     /// attachment at the head of the title, which is also how the row picks up
     /// `displayName` (the show-extensions preference) and the dimming a cut
     /// item needs. Casting to `NSBrowserCell` here silently disabled all three.
@@ -636,9 +726,10 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
         guard let cell = cell as? NSCell,
               let node = sender.item(atRow: row, inColumn: column) as? FileNode else { return }
         let cut = cutURLs.contains(node.url.standardizedFileURL)
-        let title = NSMutableAttributedString(attachment: iconAttachment(for: node.item, cut: cut))
+        let font = NSFont.systemFont(ofSize: max(11, min(13, iconSize * 0.55)))
+        let title = NSMutableAttributedString(attachment: iconAttachment(for: node.item, cut: cut, font: font))
         title.append(NSAttributedString(string: "  " + node.item.displayName, attributes: [
-            .font: NSFont.systemFont(ofSize: max(11, min(13, iconSize * 0.55))),
+            .font: font,
             .foregroundColor: cut ? NSColor.secondaryLabelColor : NSColor.labelColor,
         ]))
         // A column narrower than the name must truncate it, not drop it. The
@@ -694,7 +785,7 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
     }
 
     /// The row's icon, drawn as the first character of the title.
-    private func iconAttachment(for item: FileItem, cut: Bool) -> NSTextAttachment {
+    private func iconAttachment(for item: FileItem, cut: Bool, font: NSFont) -> NSTextAttachment {
         let attachment = NSTextAttachment()
         // FileItem's own rule, so a published package shows its real icon
         // here as it does in the other views.
@@ -703,13 +794,13 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
         // fades here too rather than leaving a full-strength icon beside dimmed
         // text.
         attachment.image = cut ? Self.faded(icon) : icon
-        // An attachment sits on the text baseline, so a square the height of a
-        // row would hang below it; the negative y drops it back to the row's
-        // vertical centre. The bounds do the sizing; `NSWorkspace` hands back a
+        // An attachment sits on the text baseline; this y centres the square on
+        // the name's cap-height midpoint, which `ColumnRowCell` puts on the
+        // row's centre. The bounds do the sizing; `NSWorkspace` hands back a
         // fresh image per call (measured), so resizing it would be safe but
         // pointless work on every redraw.
         let side = max(12, iconSize - 4)
-        attachment.bounds = NSRect(x: 0, y: (side - iconSize) / 2 - 3, width: side, height: side)
+        attachment.bounds = NSRect(x: 0, y: (font.capHeight - side) / 2, width: side, height: side)
         return attachment
     }
 

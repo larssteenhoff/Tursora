@@ -107,8 +107,10 @@ enum AppearanceSmokeTests: SmokeSuite {
                   didRender)
         }
         browser.setActiveIndicator(false)
-        let cleared = await rendered(indicator) { indicator.layer?.backgroundColor?.alpha == 0 }
-        check("inactive pane indicator remains transparent", cleared)
+        let filled = await rendered(indicator) {
+            matches(indicator.layer?.backgroundColor, .windowBackgroundColor, in: indicator.effectiveAppearance)
+        }
+        check("inactive pane indicator fills with the window surface, leaving no gap", filled)
     }
 
     /// Appearance invalidation is delivered through AppKit's display cycle.
