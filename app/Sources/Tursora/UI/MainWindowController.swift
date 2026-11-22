@@ -87,6 +87,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
 
     deinit { if let placesObserver { NotificationCenter.default.removeObserver(placesObserver) } }
 
+    /// The size a new window opens at, title bar included.
+    static let defaultWindowSize = NSSize(width: 1013, height: 594)
+
     init(provider: FileProvider, places: PlacesModel, initialURL: URL,
          viewPropertiesStore: DirectoryViewPropertiesStore = .shared) {
         self.provider = provider
@@ -106,6 +109,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         // AppKit's frame autosave always writes UserDefaults.standard, even
         // when our own stores use an isolated smoke/QA suite.
         if AppDefaults.isolatedDomain == nil { window.setFrameAutosaveName("TursoraMainWindow") }
+        // Every new window opens at the same size; a restored session then
+        // puts each saved window back at its own frame.
+        window.setFrame(NSRect(origin: window.frame.origin, size: Self.defaultWindowSize), display: false)
         window.center()
         super.init(window: window)
         window.delegate = self
