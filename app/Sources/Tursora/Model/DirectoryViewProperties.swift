@@ -140,7 +140,11 @@ struct DirectoryViewProperties: Codable, Equatable {
 /// or xattrs in them. All state and disk writes share one serial queue, so a
 /// delayed older snapshot cannot overwrite a newer navigation's settings.
 final class DirectoryViewPropertiesStore {
-    enum Policy: String, Codable { case perDirectory, unified }
+    /// perDirectory: each folder keeps its own view. perSidebarItem: a folder
+    /// shares the view of the deepest sidebar item that contains it, so
+    /// clicking around inside Desktop or Downloads never switches the view.
+    /// unified: one view everywhere.
+    enum Policy: String, Codable { case perDirectory, perSidebarItem, unified }
 
     static let didChange = Notification.Name("Tursora.directoryViewPropertiesChanged")
 
@@ -166,6 +170,8 @@ final class DirectoryViewPropertiesStore {
     private var storedDefaults: DirectoryViewProperties
     private var storedPolicy: Policy = .perDirectory
     private var directories: [String: DirectoryViewProperties] = [:]
+    /// Sidebar item keys, deepest first, for the per-sidebar-item policy.
+    private var sidebarRoots: [String] = []
     private var dirty = false
     private var writeGeneration: UInt64 = 0
     private var writeError: Error?
@@ -204,10 +210,29 @@ final class DirectoryViewPropertiesStore {
 
     func properties(forKey key: String?) -> DirectoryViewProperties {
         queue.sync {
-            guard storedPolicy == .perDirectory, let key else { return storedDefaults }
-            return directories[key] ?? storedDefaults
+            guard storedPolicy != .unified, let key else { return storedDefaults }
+            return directories[effectiveKey(key)] ?? storedDefaults
         }
     }
+
+    /// The sidebar's folders and volumes. Under the per-sidebar-item policy a
+    /// folder's settings live on the deepest of these that contains it.
+    func setSidebarRoots(_ urls: [URL]) {
+        let keys = urls.compactMap { Self.directoryKey(for: $0) }
+        queue.sync { sidebarRoots = Array(Set(keys)).sorted { $0.count > $1.count } }
+    }
+
+    /// The record a folder reads and writes. Call on `queue`.
+    private func effectiveKey(_ key: String) -> String {
+        guard storedPolicy == .perSidebarItem else { return key }
+        for root in sidebarRoots where key == root || key.hasPrefix(root == "/" ? "/" : root + "/") {
+            return root
+        }
+        return key
+    }
+
+    /// The record key a folder uses under the current policy.
+    func recordKey(forKey key: String) -> String { queue.sync { effectiveKey(key) } }
 
     /// Ordinary directory edits intentionally do not notify other panes. The
     /// last edit wins for the next entry; already-open panes stay independent.
@@ -220,6 +245,7 @@ final class DirectoryViewPropertiesStore {
                 scheduleWrite()
                 return true
             }
+            let key = effectiveKey(key)
             guard directories[key] != value else { return false }
             directories[key] = value
             scheduleWrite()
@@ -241,7 +267,7 @@ final class DirectoryViewPropertiesStore {
 
     func reset(key: String) {
         let changed = queue.sync {
-            guard directories.removeValue(forKey: key) != nil else { return false }
+            guard directories.removeValue(forKey: effectiveKey(key)) != nil else { return false }
             scheduleWrite()
             return true
         }
@@ -259,7 +285,7 @@ final class DirectoryViewPropertiesStore {
     }
 
     /// Reports a stored record even while unified policy temporarily ignores it.
-    func hasOverride(forKey key: String) -> Bool { queue.sync { directories[key] != nil } }
+    func hasOverride(forKey key: String) -> Bool { queue.sync { directories[effectiveKey(key)] != nil } }
 
     /// A persistence barrier for application termination and restart tests.
     /// Failed writes keep dirty state, so a later flush can retry safely.

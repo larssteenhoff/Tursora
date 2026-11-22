@@ -119,6 +119,7 @@ enum AppPreferences {
             static let terminal = "experimentalTerminalEnabled"
             static let zip = "experimentalZIPBrowsingEnabled"
             static let tabStyle = "tabStyle"
+            static let rowStripes = "rowStripeStrength"
             static let shortcutKey = "filterShortcutKey"
             static let shortcutModifiers = "filterShortcutModifiers"
         }
@@ -156,6 +157,20 @@ enum AppPreferences {
                 let old = tabStyle
                 defaults.set(newValue.rawValue, forKey: Key.tabStyle)
                 if old != newValue { notify() }
+            }
+        }
+        /// How much the list view's alternate rows differ, 0 (all rows the
+        /// same) to 1 (strongest). The default is close to the system's stripe.
+        static let defaultRowStripeStrength = 0.4
+        var rowStripeStrength: Double {
+            get {
+                guard defaults.object(forKey: Key.rowStripes) != nil else { return Self.defaultRowStripeStrength }
+                return min(1, max(0, defaults.double(forKey: Key.rowStripes)))
+            }
+            set {
+                let old = rowStripeStrength, value = min(1, max(0, newValue))
+                defaults.set(value, forKey: Key.rowStripes)
+                if old != value { notify() }
             }
         }
         var filterShortcut: Shortcut {

@@ -122,6 +122,7 @@ extension BrowserViewController {
 
 extension MainWindowController {
     @objc func rememberFolderViews(_ sender: Any?) { browser.setViewPropertiesPolicy(.perDirectory) }
+    @objc func rememberSidebarItemViews(_ sender: Any?) { browser.setViewPropertiesPolicy(.perSidebarItem) }
     @objc func useUnifiedFolderView(_ sender: Any?) { browser.setViewPropertiesPolicy(.unified) }
     @objc func useCurrentViewAsDefault(_ sender: Any?) { browser.useCurrentViewAsDefault() }
     @objc func restoreFolderViewDefaults(_ sender: Any?) { browser.restoreDirectoryViewDefaults() }
@@ -131,13 +132,16 @@ extension MainWindowController {
         case #selector(rememberFolderViews(_:)):
             item.state = browser.viewPropertiesStore.policy == .perDirectory ? .on : .off
             return true
+        case #selector(rememberSidebarItemViews(_:)):
+            item.state = browser.viewPropertiesStore.policy == .perSidebarItem ? .on : .off
+            return true
         case #selector(useUnifiedFolderView(_:)):
             item.state = browser.viewPropertiesStore.policy == .unified ? .on : .off
             return true
         case #selector(useCurrentViewAsDefault(_:)):
             return browser.canPersistViewProperties
         case #selector(restoreFolderViewDefaults(_:)):
-            return browser.canPersistViewProperties && browser.viewPropertiesStore.policy == .perDirectory
+            return browser.canPersistViewProperties && browser.viewPropertiesStore.policy != .unified
         case #selector(toggleCalculateAllSizes(_:)):
             item.state = browser.model.folderSizes.calculatesAllSizes ? .on : .off
             return browser.canCalculateFolderSizes

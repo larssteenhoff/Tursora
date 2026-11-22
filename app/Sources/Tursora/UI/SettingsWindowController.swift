@@ -11,6 +11,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
     }
 
     let extensionsCheckbox = NSButton(checkboxWithTitle: "Show all filename extensions", target: nil, action: nil)
+    let rowStripeSlider = NSSlider(value: 0.4, minValue: 0, maxValue: 1, target: nil, action: nil)
     let restoreWorkspaceCheckbox = NSButton(checkboxWithTitle: "Reopen windows and tabs on launch", target: nil, action: nil)
     /// macOS has no "default file manager" setting; what it has is the handler
     /// for `public.folder`. The button asks the system, which puts its own
@@ -147,12 +148,20 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
         retryFolderViewSave.bezelStyle = .rounded
         retryFolderViewSave.target = self
         retryFolderViewSave.action = #selector(retrySavingFolderViews(_:))
-        folderViewPolicy.addItems(withTitles: ["Remember Each Folder", "Use One View for All Folders"])
+        folderViewPolicy.addItems(withTitles: Self.folderViewPolicies.map(\.title))
         folderViewPolicy.target = self
         folderViewPolicy.action = #selector(changeFolderViewPolicy(_:))
         folderViewPolicy.setAccessibilityLabel("Folder View Settings")
         extensionsCheckbox.target = self
         extensionsCheckbox.action = #selector(toggleExtensions(_:))
+        rowStripeSlider.target = self
+        rowStripeSlider.action = #selector(changeRowStripes(_:))
+        rowStripeSlider.isContinuous = true
+        rowStripeSlider.setAccessibilityLabel("Alternating Row Colors")
+        rowStripeSlider.widthAnchor.constraint(equalToConstant: 220).isActive = true
+        let stripeRow = NSStackView(views: [NSTextField(labelWithString: "Same"), rowStripeSlider,
+                                            NSTextField(labelWithString: "Strong")])
+        stripeRow.spacing = 8
         tabStylePopUp.addItems(withTitles: AppPreferences.TabStyle.allCases.map(\.title))
         tabStylePopUp.target = self
         tabStylePopUp.action = #selector(changeTabStyle(_:))
@@ -179,10 +188,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
             NSTextField.heading("Opening folders"), defaultFileManagerStatus, defaultFileManagerButton,
             NSTextField.heading("General"), extensionsCheckbox,
             NSTextField.detail("Applies to file labels. Files keep their original names."), separator(),
+            NSTextField.heading("Alternating Row Colors"), stripeRow,
+            NSTextField.detail("How much every other row in List view differs. All the way left, every row is the same color."), separator(),
             NSTextField.heading("Tab Style"), tabStylePopUp,
             NSTextField.detail("Folder Tabs join the selected tab to the folder below it. Finder Style splits the bar into flat segments. Underline marks the selected tab with a line. Pills is the original rounded look."), separator(),
             NSTextField.heading("Folder View Settings"), folderViewPolicy,
-            NSTextField.detail("Remember view mode, sorting, icon sizes, groups, hidden files and previews. Use View → Folder View Settings to save a default or reset a folder. In Remember Each Folder mode, open panes keep their own view until you revisit the folder."),
+            NSTextField.detail("Remember view mode, sorting, icon sizes, groups, hidden files and previews. Use View → Folder View Settings to save a default or reset a folder. Remember Each Sidebar Item shares one view across everything inside Desktop, Downloads or any other sidebar item. In the remembering modes, open panes keep their own view until you revisit the folder."),
             folderViewSaveMessage, retryFolderViewSave, separator(),
             NSTextField.heading("Terminal & ZIP"),
             terminalCheckbox, NSTextField.detail("Adds the Terminal button to the toolbar and Show Terminal to the View menu; with this off both are gone and the Terminal settings accept no changes. Hidden sessions keep running, including when this option is off. Re-enable it to return to the session. Customize its shell and appearance in Terminal, and its shortcut in Shortcuts."),
@@ -214,6 +225,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
         refreshUpdateControls()
         syncDefaultFileManager()
         restoreWorkspaceCheckbox.state = preferences.restoreWorkspaceOnLaunch ? .on : .off
+        rowStripeSlider.doubleValue = preferences.rowStripeStrength
         workspaceSaveMessage.stringValue = workspaceStore.lastError ?? ""
         workspaceSaveMessage.isHidden = workspaceStore.lastError == nil
         retryWorkspaceSave.isHidden = workspaceStore.lastError == nil
@@ -227,7 +239,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
             folderViewSaveMessage.textColor = .secondaryLabelColor
             retryFolderViewSave.isHidden = true
         }
-        folderViewPolicy.selectItem(at: viewPropertiesStore.policy == .perDirectory ? 0 : 1)
+        folderViewPolicy.selectItem(at: Self.folderViewPolicies.firstIndex { $0.policy == viewPropertiesStore.policy } ?? 0)
         extensionsCheckbox.state = preferences.showFileExtensions ? .on : .off
         tabStylePopUp.selectItem(at: AppPreferences.TabStyle.allCases.firstIndex(of: preferences.tabStyle) ?? 0)
         terminalCheckbox.state = preferences.experimentalTerminalEnabled ? .on : .off
@@ -289,9 +301,19 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
     }
 
     @objc func changeFolderViewPolicy(_ sender: NSPopUpButton) {
-        viewPropertiesStore.setPolicy(sender.indexOfSelectedItem == 0 ? .perDirectory : .unified)
+        let choices = Self.folderViewPolicies
+        guard choices.indices.contains(sender.indexOfSelectedItem) else { return }
+        viewPropertiesStore.setPolicy(choices[sender.indexOfSelectedItem].policy)
     }
 
+    /// Settings and View menu share these titles, in this order.
+    static let folderViewPolicies: [(policy: DirectoryViewPropertiesStore.Policy, title: String)] = [
+        (.perDirectory, "Remember Each Folder"),
+        (.perSidebarItem, "Remember Each Sidebar Item"),
+        (.unified, "Use One View for All Folders"),
+    ]
+
+    @objc func changeRowStripes(_ sender: NSSlider) { preferences.rowStripeStrength = sender.doubleValue }
     @objc func toggleExtensions(_ sender: NSButton) { preferences.showFileExtensions = sender.state == .on }
     @objc func changeTabStyle(_ sender: NSPopUpButton) {
         let styles = AppPreferences.TabStyle.allCases

@@ -245,7 +245,8 @@ final class FileListViewController: NSViewController, FileViewing, NSOutlineView
         tableView.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
         applyColumnWidths()
         tableView.allowsMultipleSelection = true
-        tableView.usesAlternatingRowBackgroundColors = true
+        // Stripes are drawn by FileOutlineView at the strength set in Settings.
+        tableView.usesAlternatingRowBackgroundColors = false
         tableView.style = .fullWidth
         tableView.rowSizeStyle = .custom          // .default ignores rowHeight, which the zoom drives
         tableView.rowHeight = Self.rowHeight(forIconSize: iconSize)   // setIconSize may have run before loadView
@@ -765,9 +766,49 @@ final class FileOutlineView: NSOutlineView {
     private var backingScale = BackingScaleTracker()
     private var zoomGesture = ZoomGestureAccumulator()
     private var pendingRename: DispatchWorkItem?
+    private var preferencesObserver: NSObjectProtocol?
+
+    /// The alternate-row stripe: 0 draws every row alike, 1 the strongest.
+    var stripeStrength = CGFloat(AppPreferences.shared.rowStripeStrength) {
+        didSet { if stripeStrength != oldValue { needsDisplay = true } }
+    }
+    /// The darkest stripe, as an alpha of the label colour, at strength 1.
+    static let maximumStripeAlpha: CGFloat = 0.12
+
+    deinit { if let preferencesObserver { NotificationCenter.default.removeObserver(preferencesObserver) } }
+
+    override func drawBackground(inClipRect clipRect: NSRect) {
+        super.drawBackground(inClipRect: clipRect)
+        guard stripeStrength > 0 else { return }
+        NSColor.labelColor.withAlphaComponent(Self.maximumStripeAlpha * stripeStrength).setFill()
+        let pitch = rowHeight + intercellSpacing.height
+        guard pitch > 0 else { return }
+        // Real rows first (group rows may differ in height), then the same
+        // rhythm continues into the empty space below the last row.
+        var index = 0, y: CGFloat = 0
+        if numberOfRows > 0 {
+            let visible = rows(in: clipRect)
+            for row in visible.location..<(visible.location + visible.length) where row % 2 == 1 {
+                rect(ofRow: row).intersection(clipRect).fill()
+            }
+            index = numberOfRows
+            y = rect(ofRow: numberOfRows - 1).maxY
+        }
+        while y < clipRect.maxY {
+            if index % 2 == 1, y + pitch > clipRect.minY {
+                NSRect(x: clipRect.minX, y: y, width: clipRect.width, height: pitch).intersection(clipRect).fill()
+            }
+            y += pitch; index += 1
+        }
+    }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        if preferencesObserver == nil {
+            preferencesObserver = NotificationCenter.default.addObserver(
+                forName: .tursoraPreferencesChanged, object: nil, queue: .main
+            ) { [weak self] _ in self?.stripeStrength = CGFloat(AppPreferences.shared.rowStripeStrength) }
+        }
         if backingScale.update(from: window) { onBackingScaleChanged?() }
     }
 

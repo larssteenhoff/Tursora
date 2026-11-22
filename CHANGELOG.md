@@ -6,6 +6,8 @@ User-visible changes are recorded here. Add changes under Unreleased, then move 
 
 ### Added
 
+- **Remember Each Sidebar Item** joins the folder-view choices in Settings and View → Folder View Settings: every folder inside a sidebar item (Desktop, Downloads, a volume…) shares that item's view, so browsing within it no longer switches between list, icon and column view.
+- **Settings → General → Alternating Row Colors** sets how much every other row in List view differs; all the way left makes every row the same color.
 - **Settings → General → Tab Style** chooses how tabs look: Folder Tabs (the new default; the selected tab joins the folder below it), Finder Style segments, Underline (shown only when more than one tab is open), or the original Pills.
 - **⌃-scroll zooms** like ⌘-scroll in the list, icon and column views, and a mouse wheel now changes the icon size by one slider step per notch.
 - **View → Show View Options (⌘J)** gathers view mode, sorting, grouping, icon size, preview and column controls in a panel that follows the active pane. List and column-view widths are remembered with folder settings, with default and reset actions.

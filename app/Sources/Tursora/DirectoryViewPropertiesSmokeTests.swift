@@ -90,6 +90,23 @@ enum DirectoryViewPropertiesSmokeTests: SmokeSuite {
         restarted.setPolicy(.perDirectory)
         check("returning to per-directory policy revives retained overrides",
               restarted.properties(forKey: aKey) == firstProperties && restarted.properties(forKey: bKey) == secondProperties)
+        // Per sidebar item: everything inside a sidebar folder shares its view.
+        let sidebarStore = DirectoryViewPropertiesStore(fileURL: fixture.appendingPathComponent("sidebar-views.json"))
+        sidebarStore.setSidebarRoots([URL(fileURLWithPath: "/Fixture/Downloads"), URL(fileURLWithPath: "/Fixture")])
+        sidebarStore.setPolicy(.perSidebarItem)
+        sidebarStore.save(firstProperties, forKey: "/Fixture/Downloads/Nested/Deeper")
+        sidebarStore.save(secondProperties, forKey: "/Fixture/Other")
+        check("per-sidebar-item policy shares one view across a sidebar item's folders",
+              sidebarStore.properties(forKey: "/Fixture/Downloads") == firstProperties
+              && sidebarStore.properties(forKey: "/Fixture/Downloads/Elsewhere") == firstProperties
+              && sidebarStore.recordKey(forKey: "/Fixture/Downloads/Nested") == "/Fixture/Downloads")
+        check("per-sidebar-item policy uses the deepest containing item and keeps sibling items apart",
+              sidebarStore.properties(forKey: "/Fixture") == secondProperties
+              && sidebarStore.recordKey(forKey: "/Fixture/DownloadsLater") == "/Fixture"
+              && sidebarStore.recordKey(forKey: "/Unrelated/Folder") == "/Unrelated/Folder")
+        sidebarStore.setPolicy(.perDirectory)
+        check("per-directory policy reads each folder's own record again",
+              sidebarStore.properties(forKey: "/Fixture/Downloads/Elsewhere") == sidebarStore.defaultProperties)
         for index in 0..<30 {
             var properties = firstProperties
             properties.iconsZoomIndex = index % ZoomLevel.iconSizes.count
@@ -213,8 +230,8 @@ enum DirectoryViewPropertiesSmokeTests: SmokeSuite {
         let settings = SettingsWindowController(viewPropertiesStore: store)
         defer { settings.close() }
         await listed(pane, at: a)
-        check("Settings exposes both folder-view policies and reflects the stored selection",
-              settings.folderViewPolicy.numberOfItems == 2 && settings.folderViewPolicy.indexOfSelectedItem == 0)
+        check("Settings exposes all three folder-view policies and reflects the stored selection",
+              settings.folderViewPolicy.numberOfItems == 3 && settings.folderViewPolicy.indexOfSelectedItem == 0)
         check("new pane begins with defaults and a directory key",
               pane.currentViewProperties == defaults && pane.viewPropertiesKey == DirectoryViewPropertiesStore.directoryKey(for: a))
         apply(firstProperties, to: pane)
@@ -278,7 +295,7 @@ enum DirectoryViewPropertiesSmokeTests: SmokeSuite {
               !store.hasOverride(forKey: newTab.viewPropertiesKey!)
               && newTab.currentViewProperties == firstProperties && peer.currentViewProperties == firstProperties)
         apply(secondProperties, to: newTab)
-        settings.folderViewPolicy.selectItem(at: 1)
+        settings.folderViewPolicy.selectItem(withTitle: "Use One View for All Folders")
         check("Settings policy popup dispatches its real action",
               settings.folderViewPolicy.sendAction(settings.folderViewPolicy.action, to: settings.folderViewPolicy.target))
         check("unified policy immediately applies the default to all open panes",
@@ -352,7 +369,7 @@ enum DirectoryViewPropertiesSmokeTests: SmokeSuite {
         dispatchMenu(#selector(MainWindowController.useCurrentViewAsDefault(_:)), to: controller)
         let settings = SettingsWindowController(viewPropertiesStore: store)
         defer { settings.close() }
-        settings.folderViewPolicy.selectItem(at: 1)
+        settings.folderViewPolicy.selectItem(withTitle: "Use One View for All Folders")
         check("narrow-layout unified policy uses the real Settings action",
               settings.folderViewPolicy.sendAction(settings.folderViewPolicy.action, to: settings.folderViewPolicy.target))
         controller.window?.contentView?.layoutSubtreeIfNeeded()

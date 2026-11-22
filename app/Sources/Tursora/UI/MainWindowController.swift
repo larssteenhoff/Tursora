@@ -59,6 +59,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     private var rememberedSidebarWidth: Double = 190
     private var rememberedSidebarCollapsed = false
     private var isRestoringWorkspace = false
+    private var placesObserver: NSObjectProtocol?
 
     var onClose: (() -> Void)?
     var onSessionChanged: (() -> Void)?
@@ -83,6 +84,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         static let group = NSToolbarItem.Identifier("tursora.group")
     }
 
+    deinit { if let placesObserver { NotificationCenter.default.removeObserver(placesObserver) } }
+
     init(provider: FileProvider, places: PlacesModel, initialURL: URL,
          viewPropertiesStore: DirectoryViewPropertiesStore = .shared) {
         self.provider = provider
@@ -106,6 +109,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         super.init(window: window)
         window.delegate = self
         tabs.host = self
+        // The per-sidebar-item folder view policy needs the sidebar's folders.
+        let sidebarURLs = { [weak places] in places?.sections.flatMap { $0.places.map(\.url) } ?? [] }
+        viewPropertiesStore.setSidebarRoots(sidebarURLs())
+        placesObserver = NotificationCenter.default.addObserver(
+            forName: PlacesModel.didChange, object: places, queue: .main
+        ) { [weak viewPropertiesStore] _ in viewPropertiesStore?.setSidebarRoots(sidebarURLs()) }
         tabs.onCloseLastTab = { [weak self] in self?.window?.performClose(nil) }
         tabs.onDetachTab = { [weak self] snapshot in
             guard let self, let app = NSApp.delegate as? AppDelegate else { return false }

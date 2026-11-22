@@ -161,9 +161,9 @@ enum ShortcutSmokeTests: SmokeSuite {
         page.resetButton.performClick(nil)
         check("Reset restores the selected default", store.shortcut(for: "menu.toggleTerminal")?.displayString == "F4")
         page.filterCommands("folder view settings")
-        // Folder View Settings: the two policies, the two defaults commands
+        // Folder View Settings: the three policies, the two defaults commands
         // and "Calculate all sizes".
-        check("search includes command categories", page.visibleActions.count == 5)
+        check("search includes command categories", page.visibleActions.count == 6)
         page.filterCommands("a command that does not exist")
         check("empty search disables recording", page.visibleActions.isEmpty && !page.recorder.isEnabled)
         page.selectAction("menu.toggleTerminal")

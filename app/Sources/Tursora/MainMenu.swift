@@ -226,6 +226,7 @@ enum MainMenu {
         menu.addItem(.separator())
         let (memoryItem, memoryMenu) = submenu("Folder View Settings")
         add(memoryMenu, "Remember Each Folder", #selector(MainWindowController.rememberFolderViews(_:)), "", [])
+        add(memoryMenu, "Remember Each Sidebar Item", #selector(MainWindowController.rememberSidebarItemViews(_:)), "", [])
         add(memoryMenu, "Use One View for All Folders", #selector(MainWindowController.useUnifiedFolderView(_:)), "", [])
         memoryMenu.addItem(.separator())
         add(memoryMenu, "Use Current Settings as Default", #selector(MainWindowController.useCurrentViewAsDefault(_:)), "", [])
