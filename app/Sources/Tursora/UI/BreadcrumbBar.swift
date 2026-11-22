@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 
 /// Dolphin-style URL navigator. Breadcrumb mode shows one button per path
 /// segment with a `›` after each that lists that folder's subfolders (so you
@@ -24,9 +25,13 @@ final class BreadcrumbBar: NSView, NSTextFieldDelegate {
         selectionTrailIsFile = isFile
         if !isEditing { rebuild() }
     }
+    /// Follows Settings → Path Bar → Show Selected Item.
+    var showsSelectionTrail = AppPreferences.shared.pathBarShowsSelection {
+        didSet { if showsSelectionTrail != oldValue, !isEditing { rebuild() } }
+    }
     /// The trail when it extends the location; nil otherwise.
     private var effectiveTrail: URL? {
-        guard let trail = selectionTrail, let url else { return nil }
+        guard showsSelectionTrail, let trail = selectionTrail, let url else { return nil }
         let base = ArchiveWorkspace.shared.logicalURL(for: url).standardizedFileURL.path
         let deep = ArchiveWorkspace.shared.logicalURL(for: trail).standardizedFileURL.path
         guard deep != base, deep.hasPrefix(base == "/" ? "/" : base + "/") else { return nil }
@@ -86,11 +91,16 @@ final class BreadcrumbBar: NSView, NSTextFieldDelegate {
         refreshShortcutHint()
         shortcutObserver = NotificationCenter.default.addObserver(forName: .tursoraShortcutsChanged,
             object: AppPreferences.shared.shortcuts, queue: .main) { [weak self] _ in self?.refreshShortcutHint() }
+        preferencesObserver = NotificationCenter.default.addObserver(forName: .tursoraPreferencesChanged,
+            object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            self.usesColorIcons = AppPreferences.shared.pathBarColorIcons
+            self.showsSelectionTrail = AppPreferences.shared.pathBarShowsSelection
+        }
         textField.cell?.sendsActionOnEndEditing = false
         addSubview(textField)
         let overflow = NSButton(title: "…", target: self, action: #selector(overflowClicked(_:)))
-        overflow.bezelStyle = .accessoryBarAction
-        overflow.showsBorderOnlyWhileMouseInside = true
+        overflow.isBordered = false
         overflow.toolTip = "Hidden segments"
         overflow.isHidden = true
         addSubview(overflow)
@@ -106,7 +116,22 @@ final class BreadcrumbBar: NSView, NSTextFieldDelegate {
         registerForDraggedTypes([.fileURL, ArchiveEntryPromiseProvider.internalType])
     }
     required init?(coder: NSCoder) { fatalError() }
-    deinit { if let shortcutObserver { NotificationCenter.default.removeObserver(shortcutObserver) } }
+    deinit {
+        if let shortcutObserver { NotificationCenter.default.removeObserver(shortcutObserver) }
+        if let preferencesObserver { NotificationCenter.default.removeObserver(preferencesObserver) }
+    }
+    private var preferencesObserver: NSObjectProtocol?
+    /// Colour icons on every segment (Finder's path bar), or the gray home
+    /// and drive symbols only. Follows Settings.
+    var usesColorIcons = AppPreferences.shared.pathBarColorIcons {
+        didSet { if usesColorIcons != oldValue, !isEditing { rebuild() } }
+    }
+    /// For tests: each segment's icon, nil where none is drawn.
+    var segmentIconsForTesting: [NSImage?] { segmentButtons.map(\.image) }
+    /// For tests: no segment, chevron or overflow control draws an outline.
+    var controlsAreBorderlessForTesting: Bool {
+        (segmentButtons + chevronButtons + [overflowButton].compactMap { $0 }).allSatisfy { !$0.isBordered }
+    }
 
     private func refreshShortcutHint() {
         let key = AppPreferences.shared.shortcuts.shortcut(for: "menu.editLocation")?.displayString
@@ -140,6 +165,9 @@ final class BreadcrumbBar: NSView, NSTextFieldDelegate {
         segmentButtons = []; chevronButtons = []
         let trail = effectiveTrail
         segments = Self.segments(for: trail ?? url, home: homeURL)
+        if usesColorIcons {
+            segments = segments.map { Segment(url: $0.url, title: $0.title, icon: Self.colorIcon(for: $0.url)) }
+        }
         let fileIndex = trail != nil && selectionTrailIsFile ? segments.count - 1 : nil
         if let fileIndex, let path = trail?.path {
             let last = segments[fileIndex]
@@ -150,8 +178,8 @@ final class BreadcrumbBar: NSView, NSTextFieldDelegate {
 
         for (i, seg) in segments.enumerated() {
             let b = NSButton(title: seg.title, target: self, action: #selector(segmentClicked(_:)))
-            b.bezelStyle = .accessoryBarAction
-            b.showsBorderOnlyWhileMouseInside = true
+            // Plain text and icon, no outline on hover, as in Finder's path bar.
+            b.isBordered = false
             b.tag = i
             b.lineBreakMode = .byTruncatingMiddle
             b.font = i == segments.count - 1
@@ -167,8 +195,8 @@ final class BreadcrumbBar: NSView, NSTextFieldDelegate {
 
             let c = NSButton(image: NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Subfolders")!,
                              target: self, action: #selector(chevronClicked(_:)))
-            c.bezelStyle = .accessoryBarAction
-            c.showsBorderOnlyWhileMouseInside = true
+            c.isBordered = false
+            c.contentTintColor = .secondaryLabelColor
             c.tag = i
             c.toolTip = "Subfolders of \(seg.title)"
             if i == fileIndex {
@@ -214,6 +242,17 @@ final class BreadcrumbBar: NSView, NSTextFieldDelegate {
             out.append(Segment(url: base, title: title, icon: icon))
         }
         return out
+    }
+
+    /// The item's own Finder icon, in colour. Folders inside a ZIP have no
+    /// file on disk, so they get the generic folder icon.
+    static func colorIcon(for url: URL) -> NSImage {
+        let logical = ArchiveWorkspace.shared.logicalURL(for: url)
+        let image = FileManager.default.fileExists(atPath: logical.path)
+            ? NSWorkspace.shared.icon(forFile: logical.path)
+            : NSWorkspace.shared.icon(for: .folder)
+        image.size = NSSize(width: 16, height: 16)
+        return image
     }
 
     private static func navigationIcon(for url: URL) -> NSImage? {

@@ -488,11 +488,11 @@ final class BrowserViewController: NSViewController, NSMenuDelegate, NSMenuItemV
         updatePathBarSelectionTrail()
     }
 
-    /// In column view the path bar runs on to the selection, as Finder's does:
-    /// one selected item shows its own path, several show their folder.
+    /// The path bar runs on to the selection, as Finder's does, in every
+    /// view: one selected item shows its own path, several show their folder.
     func updatePathBarSelectionTrail() {
-        guard viewMode == .columns, !isSearching else { return addressBar.setSelectionTrail(nil, isFile: false) }
-        let selected = columnView.selectedItems
+        guard !isSearching, !model.isSearchResults else { return addressBar.setSelectionTrail(nil, isFile: false) }
+        let selected = fileView.selectedItems
         if selected.count == 1, let item = selected.first {
             addressBar.setSelectionTrail(item.url, isFile: !item.isNavigable)
         } else if let first = selected.first {

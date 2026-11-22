@@ -120,6 +120,8 @@ enum AppPreferences {
             static let zip = "experimentalZIPBrowsingEnabled"
             static let tabStyle = "tabStyle"
             static let rowStripes = "rowStripeStrength"
+            static let pathBarColorIcons = "pathBarColorIcons"
+            static let pathBarSelection = "pathBarShowsSelection"
             static let shortcutKey = "filterShortcutKey"
             static let shortcutModifiers = "filterShortcutModifiers"
         }
@@ -172,6 +174,17 @@ enum AppPreferences {
                 defaults.set(value, forKey: Key.rowStripes)
                 if old != value { notify() }
             }
+        }
+        /// Path bar segments show each folder's own colour icon, as Finder's
+        /// path bar does; off keeps the gray symbols (home, drive) only.
+        var pathBarColorIcons: Bool {
+            get { defaults.object(forKey: Key.pathBarColorIcons) == nil ? true : defaults.bool(forKey: Key.pathBarColorIcons) }
+            set { set(newValue, forKey: Key.pathBarColorIcons, oldValue: pathBarColorIcons) }
+        }
+        /// The path bar runs on to the selected item, as Finder's does.
+        var pathBarShowsSelection: Bool {
+            get { defaults.object(forKey: Key.pathBarSelection) == nil ? true : defaults.bool(forKey: Key.pathBarSelection) }
+            set { set(newValue, forKey: Key.pathBarSelection, oldValue: pathBarShowsSelection) }
         }
         var filterShortcut: Shortcut {
             shortcuts.shortcut(for: ShortcutCatalog.filterID) ?? Shortcut(keyEquivalent: "", modifierFlags: [])

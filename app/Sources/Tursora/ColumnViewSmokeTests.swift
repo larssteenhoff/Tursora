@@ -52,8 +52,31 @@ enum ColumnViewSmokeTests: SmokeSuite {
         }
         check("selecting a shallower folder shortens the trail",
               pane.addressBar.segmentTitles.last == "Other", "\(pane.addressBar.segmentTitles)")
+        let bar = pane.addressBar
+        check("path bar segments draw no outline, hovered or not", bar.controlsAreBorderlessForTesting)
+        bar.usesColorIcons = true
+        check("colour icons: every segment shows its own full-colour icon",
+              bar.segmentIconsForTesting.allSatisfy { $0 != nil && $0?.isTemplate == false })
+        bar.usesColorIcons = false
+        let gray = bar.segmentIconsForTesting
+        check("gray icons: only the drive or home symbol, drawn as a template",
+              gray.first??.isTemplate == true && gray.dropFirst().allSatisfy { $0 == nil }, "\(gray.map { $0 != nil })")
+        bar.usesColorIcons = AppPreferences.shared.pathBarColorIcons
+        // List and icon views show the selection the same way.
+        let top = root.appendingPathComponent("top.txt")
+        try? "t".write(to: top, atomically: true, encoding: .utf8)
         pane.setViewMode(.details)
-        check("leaving column view shows only the location again",
+        pane.reload()
+        await expectEventually("the new file is listed") { pane.model.items.contains { $0.name == "top.txt" } }
+        pane.fileList.select(urls: [top])
+        await expectEventually("list selection settles") { pane.fileList.selectedItems.map(\.name) == ["top.txt"] }
+        check("List view: the path bar ends with the selected file",
+              pane.addressBar.segmentTitles.last == "top.txt", "\(pane.addressBar.segmentTitles)")
+        pane.setViewMode(.icons)
+        check("Icon view keeps showing the selected file",
+              pane.addressBar.segmentTitles.last == "top.txt", "\(pane.addressBar.segmentTitles)")
+        pane.fileView.select(urls: [])
+        check("with nothing selected the path bar shows only the location",
               pane.addressBar.segmentTitles.last == root.lastPathComponent, "\(pane.addressBar.segmentTitles)")
     }
 

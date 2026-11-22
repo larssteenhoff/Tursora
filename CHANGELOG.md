@@ -6,6 +6,7 @@ User-visible changes are recorded here. Add changes under Unreleased, then move 
 
 ### Added
 
+- **Settings → General → Path Bar Icons** shows each path bar folder's own colour icon, as Finder does (the default), or the previous gray symbols.
 - **Remember Each Sidebar Item** joins the folder-view choices in Settings and View → Folder View Settings: every folder inside a sidebar item (Desktop, Downloads, a volume…) shares that item's view, so browsing within it no longer switches between list, icon and column view.
 - **Settings → General → Alternating Row Colors** sets how much every other row in List view differs; all the way left makes every row the same color.
 - **Settings → General → Tab Style** chooses how tabs look: Folder Tabs (the new default; the selected tab joins the folder below it), Finder Style segments, Underline (shown only when more than one tab is open), or the original Pills.
@@ -31,7 +32,8 @@ User-visible changes are recorded here. Add changes under Unreleased, then move 
 
 ### Changed
 
-- In column view the path bar shows the full path to the selected item, file included, as Finder's does.
+- Path bar segments no longer draw an outline when hovered.
+- The path bar shows the full path to the selected item, file included, in every view, as Finder's does; a Settings checkbox turns this off.
 - The tab strip is hidden while a window has one tab, and **New Tab** is now a + button in the toolbar instead of at the end of the tabs.
 - A split tab moves (keeping the same width as the other tabs) so its divider sits over the line between its two panes, each name over its own pane, and follows that line as the panes are resized.
 - A single click on one half of a split tab selects the tab and activates the pane on that side.

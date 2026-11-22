@@ -12,6 +12,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
 
     let extensionsCheckbox = NSButton(checkboxWithTitle: "Show all filename extensions", target: nil, action: nil)
     let rowStripeSlider = NSSlider(value: 0.25, minValue: 0, maxValue: 1, target: nil, action: nil)
+    let pathBarIconsPopUp = NSPopUpButton(frame: .zero, pullsDown: false)
+    let pathBarSelectionCheckbox = NSButton(checkboxWithTitle: "Show the selected item at the end of the path bar", target: nil, action: nil)
     let restoreWorkspaceCheckbox = NSButton(checkboxWithTitle: "Reopen windows and tabs on launch", target: nil, action: nil)
     /// macOS has no "default file manager" setting; what it has is the handler
     /// for `public.folder`. The button asks the system, which puts its own
@@ -154,6 +156,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
         folderViewPolicy.setAccessibilityLabel("Folder View Settings")
         extensionsCheckbox.target = self
         extensionsCheckbox.action = #selector(toggleExtensions(_:))
+        pathBarIconsPopUp.addItems(withTitles: ["Color", "Gray"])
+        pathBarIconsPopUp.target = self
+        pathBarIconsPopUp.action = #selector(changePathBarIcons(_:))
+        pathBarIconsPopUp.setAccessibilityLabel("Path Bar Icons")
+        pathBarSelectionCheckbox.target = self
+        pathBarSelectionCheckbox.action = #selector(togglePathBarSelection(_:))
         rowStripeSlider.target = self
         rowStripeSlider.action = #selector(changeRowStripes(_:))
         rowStripeSlider.isContinuous = true
@@ -188,6 +196,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
             NSTextField.heading("Opening folders"), defaultFileManagerStatus, defaultFileManagerButton,
             NSTextField.heading("General"), extensionsCheckbox,
             NSTextField.detail("Applies to file labels. Files keep their original names."), separator(),
+            NSTextField.heading("Path Bar Icons"), pathBarIconsPopUp,
+            NSTextField.detail("Color shows each folder's own icon, as Finder's path bar does. Gray shows only the home and drive symbols."),
+            pathBarSelectionCheckbox, separator(),
             NSTextField.heading("Alternating Row Colors"), stripeRow,
             NSTextField.detail("How much every other row in List view differs. All the way left, every row is the same color."), separator(),
             NSTextField.heading("Tab Style"), tabStylePopUp,
@@ -226,6 +237,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
         syncDefaultFileManager()
         restoreWorkspaceCheckbox.state = preferences.restoreWorkspaceOnLaunch ? .on : .off
         rowStripeSlider.doubleValue = preferences.rowStripeStrength
+        pathBarIconsPopUp.selectItem(at: preferences.pathBarColorIcons ? 0 : 1)
+        pathBarSelectionCheckbox.state = preferences.pathBarShowsSelection ? .on : .off
         workspaceSaveMessage.stringValue = workspaceStore.lastError ?? ""
         workspaceSaveMessage.isHidden = workspaceStore.lastError == nil
         retryWorkspaceSave.isHidden = workspaceStore.lastError == nil
@@ -313,6 +326,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTa
         (.unified, "Use One View for All Folders"),
     ]
 
+    @objc func togglePathBarSelection(_ sender: NSButton) { preferences.pathBarShowsSelection = sender.state == .on }
+    @objc func changePathBarIcons(_ sender: NSPopUpButton) { preferences.pathBarColorIcons = sender.indexOfSelectedItem == 0 }
     @objc func changeRowStripes(_ sender: NSSlider) { preferences.rowStripeStrength = sender.doubleValue }
     @objc func toggleExtensions(_ sender: NSButton) { preferences.showFileExtensions = sender.state == .on }
     @objc func changeTabStyle(_ sender: NSPopUpButton) {

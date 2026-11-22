@@ -14,6 +14,16 @@ enum SettingsSmokeTests: SmokeSuite {
         check("settings: filter defaults to Command F", store.filterShortcut == .defaultFilter)
         check("settings: workspace restoration defaults on", store.restoreWorkspaceOnLaunch)
         let freshController = SettingsWindowController(preferences: store, workspaceStore: WorkspaceSessionStore(fileURL: nil))
+        _ = freshController.window
+        check("settings: path bar icons default to colour", store.pathBarColorIcons
+              && freshController.pathBarIconsPopUp.indexOfSelectedItem == 0)
+        freshController.pathBarIconsPopUp.selectItem(withTitle: "Gray")
+        check("settings: the Path Bar Icons pop-up switches to gray through its real action",
+              freshController.pathBarIconsPopUp.sendAction(freshController.pathBarIconsPopUp.action,
+                                                          to: freshController.pathBarIconsPopUp.target)
+              && !store.pathBarColorIcons)
+        store.pathBarColorIcons = true
+        defaults.removeObject(forKey: "pathBarColorIcons")
         check("settings UI: fresh controls enable both features without saving a choice",
               freshController.terminalCheckbox.state == .on && freshController.zipCheckbox.state == .on
               && defaults.object(forKey: "experimentalTerminalEnabled") == nil
