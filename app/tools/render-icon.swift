@@ -26,11 +26,8 @@ context.clear(CGRect(x: 0, y: 0, width: size, height: size))
 context.setAllowsAntialiasing(true)
 context.setShouldAntialias(true)
 context.interpolationQuality = .high
-// Only the background corners are clipped; the foreground retains its
-// original canvas-relative scale and position. Padding is part of the PNG.
-let tile = CGRect(x: 80, y: 80, width: 864, height: 864)
-context.addPath(CGPath(roundedRect: tile, cornerWidth: 192, cornerHeight: 192, transform: nil))
-context.clip()
+// The artwork carries its own silhouette (a folder) and transparent padding,
+// so it is drawn as is, without clipping it to a rounded tile.
 context.draw(artwork, in: CGRect(x: 0, y: 0, width: size, height: size))
 guard let result = context.makeImage(),
       let destination = CGImageDestinationCreateWithURL(destinationURL as CFURL,

@@ -27,11 +27,14 @@ enum IconAssetsSmokeTests: SmokeSuite {
         let cornerInset = width / 8
         let roundedCorners = [(cornerInset, cornerInset), (width - 1 - cornerInset, cornerInset),
                               (cornerInset, height - 1 - cornerInset), (width - 1 - cornerInset, height - 1 - cornerInset)]
-        check("rounded plate leaves all four corner regions transparent",
-              roundedCorners.allSatisfy { alpha[$0.1 * width + $0.0] <= 1 })
+        // The folder's own soft drop shadow may reach these samples; an
+        // opaque tile would not stay this faint.
+        let cornerAlpha = roundedCorners.map { alpha[$0.1 * width + $0.0] }
+        check("the folder silhouette leaves all four corner regions clear of opaque fill",
+              cornerAlpha.allSatisfy { $0 <= 64 }, "corner alpha=\(cornerAlpha)")
         let interior = [(width / 2, height / 2), (width / 2, height / 4),
                         (width / 2, height * 3 / 4), (width / 4, height / 2), (width * 3 / 4, height / 2)]
-        check("plate has an opaque center and substantial opaque interior",
+        check("the folder has an opaque center and substantial opaque interior",
               interior.allSatisfy { alpha[$0.1 * width + $0.0] >= 250 })
         var minX = width, minY = height, maxX = -1, maxY = -1
         var partialAlphaCount = 0
@@ -45,7 +48,7 @@ enum IconAssetsSmokeTests: SmokeSuite {
             }
         }
         let margins = [minX, minY, width - 1 - maxX, height - 1 - maxY]
-        check("opaque plate is inset while filling the main icon area",
+        check("the opaque folder is inset while filling the main icon area",
               margins.allSatisfy { (32...192).contains($0) }, "opaque margins=\(margins)")
         check("silhouette includes a soft alpha boundary", partialAlphaCount >= 16,
               "partial alpha pixels=\(partialAlphaCount)")

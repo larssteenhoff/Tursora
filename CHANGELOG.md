@@ -33,7 +33,7 @@ User-visible changes are recorded here. Add changes under Unreleased, then move 
 - A single click on one half of a split tab selects the tab and activates the pane on that side.
 - The inactive pane of a split fills the strip above its path bar with the window surface instead of leaving a dark gap under its half of the tab; only the active pane shows the blue line.
 - The close button on a tab moved from its left end to its right end.
-- The app now shows itself as **Files**, with a new icon: a white folder with a friendly face on a blue tile. Internal identifiers are unchanged, so settings, the saved workspace and granted permissions carry over.
+- The app now shows itself as **Files**, with a new icon: one large blue folder that is the whole icon, with no tile behind it. Internal identifiers are unchanged, so settings, the saved workspace and granted permissions carry over.
 - The status-bar zoom slider has a round gray knob.
 - The selected tab's pill is darker in a focused window.
 - Address-bar completion runs off the main thread, reuses recent directory listings and ignores results from an editor session that has already changed.

@@ -2,81 +2,51 @@ import CoreGraphics
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
-
-// Draws the full-bleed 1024 px "Files" artwork: a blue gradient tile with a
-// white folder wearing a simple friendly face. Original artwork; it borrows
-// the classic Mac file manager's spirit, not Apple's Finder mark.
+// Draws the 1024 px "Files" artwork: one large blue folder that is the icon's
+// whole silhouette, transparent around it, with a sheet of paper and a faint
+// divider hinting at the two panes. Original artwork, not Apple's Finder mark.
 // Usage: swift draw-icon-artwork.swift Resources/AppIcon-artwork.png
-// then tools/make-icon.sh masks it and builds AppIcon.icns.
+// then tools/make-icon.sh builds AppIcon.png and AppIcon.icns from it.
 guard CommandLine.arguments.count == 2 else { fatalError("Usage: swift draw-icon-artwork.swift out.png") }
 let size = 1024
 let space = CGColorSpace(name: CGColorSpace.sRGB)!
-guard let ctx = CGContext(data: nil, width: size, height: size, bitsPerComponent: 8, bytesPerRow: size * 4,
-                          space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
-    fatalError("Cannot allocate bitmap")
+let ctx = CGContext(data: nil, width: size, height: size, bitsPerComponent: 8, bytesPerRow: size * 4,
+                    space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+ctx.clear(CGRect(x: 0, y: 0, width: size, height: size))
+func c(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat = 1) -> CGColor { CGColor(colorSpace: space, components: [r, g, b, a])! }
+func grad(_ cs: [CGColor]) -> CGGradient { CGGradient(colorsSpace: space, colors: cs as CFArray, locations: nil)! }
+func rr(_ r: CGRect, _ rad: CGFloat) -> CGPath { CGPath(roundedRect: r, cornerWidth: rad, cornerHeight: rad, transform: nil) }
+func fill(_ p: CGPath, _ g: CGGradient, top: CGFloat, bottom: CGFloat) {
+    ctx.saveGState(); ctx.addPath(p); ctx.clip()
+    ctx.drawLinearGradient(g, start: CGPoint(x: 0, y: top), end: CGPoint(x: 0, y: bottom), options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+    ctx.restoreGState()
 }
-func color(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat = 1) -> CGColor {
-    CGColor(colorSpace: space, components: [r, g, b, a])!
-}
-func gradient(_ colors: [CGColor]) -> CGGradient {
-    CGGradient(colorsSpace: space, colors: colors as CFArray, locations: nil)!
-}
-
-// Background: full bleed, sky blue at the top to deep blue at the bottom.
-ctx.drawLinearGradient(gradient([color(0.36, 0.74, 1.0), color(0.07, 0.42, 0.93)]),
-                       start: CGPoint(x: 512, y: 1024), end: CGPoint(x: 512, y: 0), options: [])
-// A soft glow behind the folder.
-ctx.drawRadialGradient(gradient([color(1, 1, 1, 0.28), color(1, 1, 1, 0)]),
-                       startCenter: CGPoint(x: 512, y: 560), startRadius: 0,
-                       endCenter: CGPoint(x: 512, y: 560), endRadius: 420, options: [])
-
-// Folder geometry (origin bottom-left), inside the 864 px tile with margin.
-let body = CGRect(x: 232, y: 270, width: 560, height: 400)
-let radius: CGFloat = 54
-let tab = CGRect(x: 232, y: 630, width: 230, height: 90)
-
-// Back sheet and tab, a little darker than the front.
-ctx.saveGState()
-ctx.setShadow(offset: CGSize(width: 0, height: -18), blur: 40, color: color(0.0, 0.12, 0.35, 0.35))
+let shadow = c(0, 0.06, 0.25, 0.35)
+// Back sheet with its tab.
 let back = CGMutablePath()
-back.addRoundedRect(in: CGRect(x: body.minX, y: body.minY + 40, width: body.width, height: body.height),
-                    cornerWidth: radius, cornerHeight: radius)
-back.addRoundedRect(in: tab, cornerWidth: 40, cornerHeight: 40)
-ctx.addPath(back)
-ctx.setFillColor(color(0.84, 0.92, 1.0))
-ctx.fillPath()
+back.addPath(rr(CGRect(x: 72, y: 150, width: 880, height: 660), 64))
+back.addPath(rr(CGRect(x: 72, y: 740, width: 380, height: 140), 56))
+ctx.saveGState(); ctx.setShadow(offset: CGSize(width: 0, height: -14), blur: 34, color: shadow)
+ctx.addPath(back); ctx.setFillColor(c(0.16, 0.46, 0.94)); ctx.fillPath(); ctx.restoreGState()
+fill(back, grad([c(0.28, 0.58, 1.0), c(0.10, 0.38, 0.88)]), top: 880, bottom: 150)
+// A sheet of paper peeking out.
+ctx.saveGState(); ctx.setShadow(offset: CGSize(width: 0, height: -4), blur: 10, color: c(0, 0.08, 0.3, 0.25))
+ctx.addPath(rr(CGRect(x: 132, y: 500, width: 760, height: 270), 34)); ctx.setFillColor(c(0.96, 0.98, 1.0)); ctx.fillPath()
 ctx.restoreGState()
-
-// Front panel: white with a faint cool gradient.
-ctx.saveGState()
-ctx.setShadow(offset: CGSize(width: 0, height: -10), blur: 24, color: color(0.0, 0.12, 0.35, 0.25))
-let front = CGPath(roundedRect: body, cornerWidth: radius, cornerHeight: radius, transform: nil)
-ctx.addPath(front)
-ctx.clip()
-ctx.drawLinearGradient(gradient([color(1, 1, 1), color(0.90, 0.95, 1.0)]),
-                       start: CGPoint(x: 512, y: body.maxY), end: CGPoint(x: 512, y: body.minY), options: [])
+// Front flap.
+let front = rr(CGRect(x: 72, y: 150, width: 880, height: 570), 64)
+ctx.saveGState(); ctx.setShadow(offset: CGSize(width: 0, height: -6), blur: 22, color: shadow)
+ctx.addPath(front); ctx.setFillColor(c(0.3, 0.62, 1)); ctx.fillPath(); ctx.restoreGState()
+fill(front, grad([c(0.50, 0.80, 1.0), c(0.20, 0.54, 0.99)]), top: 720, bottom: 150)
+// Top highlight on the flap.
+ctx.saveGState(); ctx.addPath(front); ctx.clip()
+ctx.setFillColor(c(1, 1, 1, 0.45)); ctx.fill(CGRect(x: 72, y: 713, width: 880, height: 7))
 ctx.restoreGState()
-
-// The face: two rounded eyes and a smile, in the background's deep blue.
-let ink = color(0.07, 0.36, 0.85)
-ctx.setFillColor(ink)
-for x in [CGFloat(420), 604] {
-    ctx.addPath(CGPath(roundedRect: CGRect(x: x - 26, y: 470, width: 52, height: 96),
-                       cornerWidth: 26, cornerHeight: 26, transform: nil))
-}
-ctx.fillPath()
-ctx.setStrokeColor(ink)
-ctx.setLineWidth(34)
-ctx.setLineCap(.round)
-ctx.addArc(center: CGPoint(x: 512, y: 452), radius: 118,
-           startAngle: CGFloat.pi * 1.18, endAngle: CGFloat.pi * 1.82, clockwise: false)
-ctx.strokePath()
-
-guard let image = ctx.makeImage(),
-      let out = CGImageDestinationCreateWithURL(URL(fileURLWithPath: CommandLine.arguments[1]) as CFURL,
-                                                UTType.png.identifier as CFString, 1, nil) else {
-    fatalError("Cannot write artwork")
-}
-CGImageDestinationAddImage(out, image, nil)
-guard CGImageDestinationFinalize(out) else { fatalError("Cannot write artwork") }
-print("→ \(CommandLine.arguments[1])")
+// A subtle embossed pane divider: two panes, one app.
+ctx.setFillColor(c(0.06, 0.32, 0.82, 0.22))
+ctx.addPath(rr(CGRect(x: 508, y: 260, width: 10, height: 340), 5)); ctx.fillPath()
+ctx.setFillColor(c(1, 1, 1, 0.28))
+ctx.addPath(rr(CGRect(x: 518, y: 260, width: 4, height: 340), 2)); ctx.fillPath()
+let img = ctx.makeImage()!
+let out = CGImageDestinationCreateWithURL(URL(fileURLWithPath: CommandLine.arguments[1]) as CFURL, UTType.png.identifier as CFString, 1, nil)!
+CGImageDestinationAddImage(out, img, nil); CGImageDestinationFinalize(out)
