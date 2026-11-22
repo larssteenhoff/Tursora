@@ -333,6 +333,7 @@ final class BrowserViewController: NSViewController, NSMenuDelegate, NSMenuItemV
         v.onRenameCommitted = { [weak self] item, name in self?.rename(item, to: name) }
         v.onSelectionChanged = { [weak self] in
             self?.updateStatus()
+            self?.updatePathBarSelectionTrail()
             if let self, !self.isRestoringWorkspaceView { self.onWorkspaceSessionChanged?() }
             if let self { NotificationCenter.default.post(name: .tursoraSelectionChanged, object: self) }
             if let self, QLPreviewPanel.sharedPreviewPanelExists(), let panel = QLPreviewPanel.shared(), panel.isVisible {
@@ -484,6 +485,21 @@ final class BrowserViewController: NSViewController, NSMenuDelegate, NSMenuItemV
         if hadFocus { view.window?.makeFirstResponder(fileView.focusView) }
         host?.viewModeDidChange(in: self)
         persistViewProperties()
+        updatePathBarSelectionTrail()
+    }
+
+    /// In column view the path bar runs on to the selection, as Finder's does:
+    /// one selected item shows its own path, several show their folder.
+    func updatePathBarSelectionTrail() {
+        guard viewMode == .columns, !isSearching else { return addressBar.setSelectionTrail(nil, isFile: false) }
+        let selected = columnView.selectedItems
+        if selected.count == 1, let item = selected.first {
+            addressBar.setSelectionTrail(item.url, isFile: !item.isNavigable)
+        } else if let first = selected.first {
+            addressBar.setSelectionTrail(first.url.deletingLastPathComponent(), isFile: false)
+        } else {
+            addressBar.setSelectionTrail(nil, isFile: false)
+        }
     }
 
     var iconSize: CGFloat { ZoomLevel.sizes(for: viewMode)[zoomIndex] }
@@ -1580,6 +1596,7 @@ final class BrowserViewController: NSViewController, NSMenuDelegate, NSMenuItemV
         if pendingWorkspaceView?.location.standardizedFileURL != workspaceNavigationURL.standardizedFileURL {
             pendingWorkspaceView = nil
         }
+        addressBar.setSelectionTrail(nil, isFile: false)
         addressBar.url = url
         viewPropertiesKey = destinationKey
         restoreViewProperties()

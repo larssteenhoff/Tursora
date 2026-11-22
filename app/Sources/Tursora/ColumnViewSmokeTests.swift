@@ -11,8 +11,50 @@ enum ColumnViewSmokeTests: SmokeSuite {
         modeModel()
         Task { @MainActor in
             await paneBehaviour()
+            await pathBarTrail()
             completion()
         }
+    }
+
+    /// Like Finder, the path bar runs on to the column selection, file
+    /// included, without moving the pane's location.
+    @MainActor
+    private static func pathBarTrail() async {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("tursora-trail-\(UUID().uuidString)").resolvingSymlinksInPath()
+        try? fm.createDirectory(at: root.appendingPathComponent("Apps/Launcher"), withIntermediateDirectories: true)
+        try? "x".write(to: root.appendingPathComponent("Apps/Launcher/run.txt"), atomically: true, encoding: .utf8)
+        try? fm.createDirectory(at: root.appendingPathComponent("Other"), withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+        let store = DirectoryViewPropertiesStore(fileURL: root.appendingPathComponent("views.json"))
+        let controller = MainWindowController(provider: LocalFileProvider(), places: PlacesModel(), initialURL: root,
+                                              viewPropertiesStore: store)
+        defer { controller.close() }
+        controller.window?.setContentSize(NSSize(width: 1200, height: 600))
+        controller.window?.makeKeyAndOrderFront(nil)
+        await expectEventually("trail fixture loaded") { controller.browser.model.generation > 0 }
+        let pane = controller.browser
+        pane.setViewMode(.columns)
+        let file = root.appendingPathComponent("Apps/Launcher/run.txt")
+        pane.columnView.select(urls: [file])
+        await expectEventually("the file is selected three columns deep") {
+            pane.columnView.selectedItems.map(\.url.lastPathComponent) == ["run.txt"]
+        }
+        let titles = pane.addressBar.segmentTitles
+        check("the path bar runs on to the selected file, as Finder's does",
+              Array(titles.suffix(4)) == [root.lastPathComponent, "Apps", "Launcher", "run.txt"], "\(titles)")
+        check("showing the selection does not move the pane's location",
+              pane.currentURL?.standardizedFileURL == root.standardizedFileURL
+              && pane.addressBar.url?.standardizedFileURL == root.standardizedFileURL)
+        pane.columnView.select(urls: [root.appendingPathComponent("Other")])
+        await expectEventually("a root folder is selected") {
+            pane.columnView.selectedItems.map(\.url.lastPathComponent) == ["Other"]
+        }
+        check("selecting a shallower folder shortens the trail",
+              pane.addressBar.segmentTitles.last == "Other", "\(pane.addressBar.segmentTitles)")
+        pane.setViewMode(.details)
+        check("leaving column view shows only the location again",
+              pane.addressBar.segmentTitles.last == root.lastPathComponent, "\(pane.addressBar.segmentTitles)")
     }
 
     /// Pure model: the third mode has its own ladder, its own persisted index,

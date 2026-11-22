@@ -31,6 +31,7 @@ User-visible changes are recorded here. Add changes under Unreleased, then move 
 
 ### Changed
 
+- In column view the path bar shows the full path to the selected item, file included, as Finder's does.
 - The tab strip is hidden while a window has one tab, and **New Tab** is now a + button in the toolbar instead of at the end of the tabs.
 - A split tab moves (keeping the same width as the other tabs) so its divider sits over the line between its two panes, each name over its own pane, and follows that line as the panes are resized.
 - A single click on one half of a split tab selects the tab and activates the pane on that side.

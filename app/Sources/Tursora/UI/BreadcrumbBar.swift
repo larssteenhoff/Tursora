@@ -13,6 +13,25 @@ final class BreadcrumbBar: NSView, NSTextFieldDelegate {
             if !isEditing { rebuild() }
         }
     }
+    /// Column view's selection, shown past the location the way Finder's path
+    /// bar does: the segments run on to the selected folder or file. Ignored
+    /// unless it lies inside `url`; it never changes the location itself.
+    private(set) var selectionTrail: URL?
+    private var selectionTrailIsFile = false
+    func setSelectionTrail(_ trail: URL?, isFile: Bool) {
+        guard trail != selectionTrail || isFile != selectionTrailIsFile else { return }
+        selectionTrail = trail
+        selectionTrailIsFile = isFile
+        if !isEditing { rebuild() }
+    }
+    /// The trail when it extends the location; nil otherwise.
+    private var effectiveTrail: URL? {
+        guard let trail = selectionTrail, let url else { return nil }
+        let base = ArchiveWorkspace.shared.logicalURL(for: url).standardizedFileURL.path
+        let deep = ArchiveWorkspace.shared.logicalURL(for: trail).standardizedFileURL.path
+        guard deep != base, deep.hasPrefix(base == "/" ? "/" : base + "/") else { return nil }
+        return trail
+    }
     var homeURL = FileManager.default.homeDirectoryForCurrentUser {
         didSet { if homeURL != oldValue { cancelCompletion() } }
     }
@@ -119,7 +138,15 @@ final class BreadcrumbBar: NSView, NSTextFieldDelegate {
         segmentButtons.forEach { $0.removeFromSuperview() }
         chevronButtons.forEach { $0.removeFromSuperview() }
         segmentButtons = []; chevronButtons = []
-        segments = Self.segments(for: url, home: homeURL)
+        let trail = effectiveTrail
+        segments = Self.segments(for: trail ?? url, home: homeURL)
+        let fileIndex = trail != nil && selectionTrailIsFile ? segments.count - 1 : nil
+        if let fileIndex, let path = trail?.path {
+            let last = segments[fileIndex]
+            let icon = NSWorkspace.shared.icon(forFile: path)
+            icon.size = NSSize(width: 16, height: 16)
+            segments[fileIndex] = Segment(url: last.url, title: last.title, icon: icon)
+        }
 
         for (i, seg) in segments.enumerated() {
             let b = NSButton(title: seg.title, target: self, action: #selector(segmentClicked(_:)))
@@ -144,6 +171,13 @@ final class BreadcrumbBar: NSView, NSTextFieldDelegate {
             c.showsBorderOnlyWhileMouseInside = true
             c.tag = i
             c.toolTip = "Subfolders of \(seg.title)"
+            if i == fileIndex {
+                // A file has no subfolders: keep the slot, show nothing.
+                c.isEnabled = false
+                c.alphaValue = 0
+                c.toolTip = nil
+                b.action = nil
+            }
             addSubview(c)
             chevronButtons.append(c)
         }
