@@ -26,8 +26,12 @@ context.clear(CGRect(x: 0, y: 0, width: size, height: size))
 context.setAllowsAntialiasing(true)
 context.setShouldAntialias(true)
 context.interpolationQuality = .high
-// The artwork carries its own silhouette (a folder) and transparent padding,
-// so it is drawn as is, without clipping it to a rounded tile.
+// Clip the full-bleed artwork to the macOS icon grid: an 824 px rounded
+// square with 100 px margins. An icon that fills this shape is drawn as is;
+// one that does not is put on a gray plate by recent macOS releases.
+let tile = CGRect(x: 100, y: 100, width: 824, height: 824)
+context.addPath(CGPath(roundedRect: tile, cornerWidth: 185, cornerHeight: 185, transform: nil))
+context.clip()
 context.draw(artwork, in: CGRect(x: 0, y: 0, width: size, height: size))
 guard let result = context.makeImage(),
       let destination = CGImageDestinationCreateWithURL(destinationURL as CFURL,
