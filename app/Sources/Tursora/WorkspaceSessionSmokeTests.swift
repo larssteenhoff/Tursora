@@ -106,7 +106,10 @@ enum WorkspaceSessionSmokeTests: SmokeSuite {
         check("\(mode): labels and physical pane paths are restored", restored.tabs.tabBar.titles == ["Nested", "Daily comparison", "Extra"] && freshComparison.panes.map { $0.addressBar.url } == [folders[0], folders[1]])
         check("\(mode): sidebar state is applied to actual layout", restored.isSidebarCollapsed == captured.sidebarCollapsed && abs(restored.workspaceSessionState.sidebarWidth - captured.sidebarWidth) < 2)
         check("\(mode): split divider is applied after window layout", abs(freshComparison.workspaceSplitFraction - captured.tabs[1].splitFraction) < 0.015 && freshComparison.panes.allSatisfy { $0.view.bounds.width >= 159 })
-        check("\(mode): window frame survives the round trip", restored.window!.frame == frame(persisted.frame!))
+        let saved = frame(persisted.frame!), shown = restored.window!.frame
+        check("\(mode): a restored window opens at the default size, at its saved top-left corner",
+              shown.size == MainWindowController.defaultWindowSize
+              && abs(shown.minX - saved.minX) < 1 && abs(shown.maxY - saved.maxY) < 1, "saved=\(saved) shown=\(shown)")
         check("\(mode): directory-view preferences still choose the actual view", freshComparison.panes.allSatisfy { $0.viewMode == mode && ($0.fileView is IconGridViewController) == (mode == .icons) })
         check("\(mode): independently stored folder grouping survives", freshComparison.panes[0].model.groupKey == .kind && freshComparison.panes[1].model.groupKey == .dateModified)
         check("\(mode): history and local filters restart cleanly", restored.tabs.pages.flatMap(\.panes).allSatisfy { $0.history.entries.count == 1 && !$0.isFiltering })
@@ -121,7 +124,17 @@ enum WorkspaceSessionSmokeTests: SmokeSuite {
         check("\(mode): repeated restoration retains active side and focus", restored.tabs.currentIndex == 1 && restored.tabs.currentPage.activeIndex == expectedActive && restored.window?.firstResponder === restored.browser.focusView)
         check("\(mode): recapture retains durable tab values", restored.workspaceSessionState.tabs.enumerated().allSatisfy {
             let expected = persisted.tabs[$0.offset]
-            return $0.element.panes == expected.panes && $0.element.customTitle == expected.customTitle
+            // A restored window opens at the default size, so a list's
+            // horizontal offset may differ by a sub-point rounding.
+            func durable(_ panes: [WorkspacePaneState]) -> [WorkspacePaneState] {
+                panes.map { pane in
+                    var pane = pane
+                    let offset = pane.viewState?.listHorizontalScrollOffset
+                    pane.viewState?.listHorizontalScrollOffset = offset.map { ($0 / 2).rounded() }
+                    return pane
+                }
+            }
+            return durable($0.element.panes) == durable(expected.panes) && $0.element.customTitle == expected.customTitle
                 && $0.element.activePaneIndex == expected.activePaneIndex && abs($0.element.splitFraction - expected.splitFraction) < 0.015
         })
         let resizedPage = restored.tabs.currentPage

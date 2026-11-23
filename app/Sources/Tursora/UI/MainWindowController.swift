@@ -221,7 +221,11 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         isRestoringWorkspace = true
         defer { isRestoringWorkspace = false }
         if let frame = state.frame, let window {
-            let proposed = NSRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
+            // Windows always open at the default size; the saved frame gives
+            // the position (its top-left corner), so a restored window comes
+            // back where it was.
+            let size = Self.defaultWindowSize
+            let proposed = NSRect(x: frame.x, y: frame.y + frame.height - size.height, width: size.width, height: size.height)
             let safe = WorkspaceWindowGeometry.constrainedFrame(
                 proposed, visibleFrames: NSScreen.screens.map(\.visibleFrame), minimumSize: window.minSize)
             window.setFrame(safe, display: false)

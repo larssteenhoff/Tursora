@@ -391,6 +391,8 @@ final class IconGridViewController: NSViewController, FileViewing, NSCollectionV
                         willBeginAt screenPoint: NSPoint, forItemsAt indexPaths: Set<IndexPath>) {
         draggingReadOnlyItems = isReadOnly || indexPaths.contains { node(at: $0)?.item.isArchiveEntry == true }
         updateDragOperations()
+        let items = indexPaths.sorted().compactMap { node(at: $0)?.item }
+        DragGhost.apply(to: session, items: items, in: collectionView, at: screenPoint)
     }
 
     func collectionView(_ collectionView: NSCollectionView, draggingSession session: NSDraggingSession,

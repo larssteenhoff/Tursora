@@ -602,6 +602,7 @@ final class FileListViewController: NSViewController, FileViewing, NSOutlineView
         draggingReadOnlyItems = isReadOnly || draggedItems.contains { ($0 as? FileNode)?.item.isArchiveEntry == true }
         updateDragOperations()
         tableView.noteDragSessionBegan()
+        DragGhost.apply(to: session, items: draggedItems.compactMap { ($0 as? FileNode)?.item }, in: tableView, at: screenPoint)
     }
 
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession,

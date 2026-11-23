@@ -33,7 +33,8 @@ User-visible changes are recorded here. Add changes under Unreleased, then move 
 
 ### Changed
 
-- New windows open at 1013 × 594 points; a restored session still puts each window back at its saved frame.
+- Dragging files in List and Icon view shows the app's own Finder-style ghost: each item's icon beside its name in a rounded label, with a count badge for several items.
+- Windows open at 1013 × 594 points, including restored ones, which keep their saved position.
 - Path bar segments no longer draw an outline when hovered.
 - The path bar shows the full path to the selected item, file included, in every view, as Finder's does; a Settings checkbox turns this off.
 - The tab strip is hidden while a window has one tab, and **New Tab** is now a + button in the toolbar instead of at the end of the tabs.
