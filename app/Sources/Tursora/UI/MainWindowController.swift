@@ -106,13 +106,13 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         window.titleVisibility = .hidden
         window.titlebarSeparatorStyle = .automatic
         window.tabbingMode = .disallowed          // D1: tabs are ours, not the window's
+        // The app restores its own windows (workspace session); macOS's window
+        // restoration would put back the last frame after launch, over the
+        // default size.
+        window.isRestorable = false
         // AppKit's frame autosave always writes UserDefaults.standard, even
         // when our own stores use an isolated smoke/QA suite.
         if AppDefaults.isolatedDomain == nil { window.setFrameAutosaveName("TursoraMainWindow") }
-        // Every new window opens at the same size; a restored session then
-        // puts each saved window back at its own frame.
-        window.setFrame(NSRect(origin: window.frame.origin, size: Self.defaultWindowSize), display: false)
-        window.center()
         super.init(window: window)
         window.delegate = self
         tabs.host = self
@@ -152,6 +152,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = false
         window.toolbar = toolbar
+        // Every new window opens at the same size, applied once the content
+        // controller and toolbar are attached: the first resizes the window to
+        // the content's own (minimum) size, the second grows it by the
+        // toolbar. A restored session keeps each window's saved position.
+        window.setFrame(NSRect(origin: window.frame.origin, size: Self.defaultWindowSize), display: false)
+        window.center()
         window.contentView?.layoutSubtreeIfNeeded()
         splitViewController.splitView.setPosition(190, ofDividerAt: 0)
 

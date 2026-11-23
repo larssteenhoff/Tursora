@@ -106,6 +106,11 @@ enum WorkspaceSessionSmokeTests: SmokeSuite {
         check("\(mode): labels and physical pane paths are restored", restored.tabs.tabBar.titles == ["Nested", "Daily comparison", "Extra"] && freshComparison.panes.map { $0.addressBar.url } == [folders[0], folders[1]])
         check("\(mode): sidebar state is applied to actual layout", restored.isSidebarCollapsed == captured.sidebarCollapsed && abs(restored.workspaceSessionState.sidebarWidth - captured.sidebarWidth) < 2)
         check("\(mode): split divider is applied after window layout", abs(freshComparison.workspaceSplitFraction - captured.tabs[1].splitFraction) < 0.015 && freshComparison.panes.allSatisfy { $0.view.bounds.width >= 159 })
+        let fresh = MainWindowController(provider: LocalFileProvider(), places: PlacesModel(), initialURL: folders[0])
+        check("a new window opens at the default size", fresh.window?.frame.size == MainWindowController.defaultWindowSize,
+              "\(String(describing: fresh.window?.frame.size))")
+        check("macOS's window restoration is off, so it cannot override the size", fresh.window?.isRestorable == false)
+        fresh.close()
         let saved = frame(persisted.frame!), shown = restored.window!.frame
         check("\(mode): a restored window opens at the default size, at its saved top-left corner",
               shown.size == MainWindowController.defaultWindowSize
