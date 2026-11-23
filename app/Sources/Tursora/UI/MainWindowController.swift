@@ -939,7 +939,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     /// place an identifier its delegate allows, and that is how the button
     /// comes back when the entry point is switched on again.
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [ToolbarID.sidebar, ToolbarID.back, ToolbarID.forward, ToolbarID.up, .flexibleSpace, ToolbarID.newTab, ToolbarID.split, ToolbarID.terminal, ToolbarID.viewMode, ToolbarID.group, ToolbarID.share, ToolbarID.more, ToolbarID.search]
+        [ToolbarID.sidebar, ToolbarID.back, ToolbarID.forward, ToolbarID.up, .flexibleSpace, ToolbarID.newTab, ToolbarID.split, ToolbarID.terminal, .space, ToolbarID.viewMode, .space, ToolbarID.group, ToolbarID.share, ToolbarID.more, ToolbarID.search]
     }
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier,

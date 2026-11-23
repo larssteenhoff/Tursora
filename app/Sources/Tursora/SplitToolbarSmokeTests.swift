@@ -28,6 +28,12 @@ enum SplitToolbarSmokeTests: SmokeSuite {
         }
         let identifier = NSToolbarItem.Identifier("tursora.split")
         check("split toggle is included in the default toolbar", controller.toolbarDefaultItemIdentifiers(toolbar).contains(identifier))
+        let defaultIDs = controller.toolbarDefaultItemIdentifiers(toolbar)
+        if let view = defaultIDs.firstIndex(of: NSToolbarItem.Identifier("tursora.viewMode")), view > 0, view + 1 < defaultIDs.count {
+            check("the view switcher has a space on both sides", defaultIDs[view - 1] == .space && defaultIDs[view + 1] == .space)
+        } else {
+            check("the view switcher has a space on both sides", false)
+        }
         let item = toolbar.items.first { $0.itemIdentifier == identifier }
             ?? controller.toolbar(toolbar, itemForItemIdentifier: identifier, willBeInsertedIntoToolbar: false)
         guard let button = controller.splitToolbarButtonForTesting else {

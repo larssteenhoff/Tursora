@@ -35,6 +35,7 @@ User-visible changes are recorded here. Add changes under Unreleased, then move 
 
 ### Changed
 
+- The toolbar leaves a space before and after the Icons / List / Columns switcher.
 - Dragging files shows the app's own Finder-style ghost: each item's icon beside its name in a rounded label, with a count badge for several items.
 - Windows open at 1013 × 594 points, including restored ones, which keep their saved position. A new window no longer shrinks to its minimum size, and macOS's own window restoration no longer overrides the size.
 - Path bar segments no longer draw an outline when hovered.
