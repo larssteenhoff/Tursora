@@ -68,10 +68,10 @@ enum ViewOptionsSmokeTests: SmokeSuite {
         let columns = pane.columnView
         let wanted = columns.browser(columns.browser, shouldSizeColumn: 0, forUserResize: true, toWidth: 365)
         columns.browser.setWidth(wanted, ofColumn: 0)
-        columns.browserColumnConfigurationDidChange(Notification(name: NSBrowser.columnConfigurationDidChangeNotification, object: columns.browser))
+        columns.browserColumnConfigurationDidChange(columns.browser)
         check("native column resize callback persists root-depth width", pane.currentViewProperties.columnViewWidths.first == 365 && store.properties(forKey: pane.viewPropertiesKey).columnViewWidths.first == 365)
         columns.setColumnWidths([295])
-        columns.browserColumnConfigurationDidChange(Notification(name: NSBrowser.columnConfigurationDidChangeNotification, object: columns.browser))
+        columns.browserColumnConfigurationDidChange(columns.browser)
         check("restoring column sizes never writes them back as a user edit", store.properties(forKey: pane.viewPropertiesKey).columnViewWidths.first == 365)
         pane.restoreViewProperties()
         check("column view applies its saved physical width", columns.browser.width(ofColumn: 0) == 365)

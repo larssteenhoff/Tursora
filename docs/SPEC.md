@@ -133,7 +133,7 @@ A failed directory listing clears all root rows and groups together. No view may
 
 | | List (details) | Icons | Columns |
 |---|---|---|---|
-| Implementation | `NSOutlineView`, folders expand in place (▸) | `NSCollectionView` grid, top level only | `NSBrowser` in item mode, as in Finder; a selected folder opens the column to its right |
+| Implementation | `NSOutlineView`, folders expand in place (▸) | `NSCollectionView` grid, top level only | The app's own tables, one per column, side by side (Finder uses `NSBrowser`; D123); a selected folder opens the column to its right, and rows drag as in the list view |
 | Zoom steps | 16 / 22 / 32 / 48 / 64 (row height follows, 24→72) | 32 → 512, 12 steps | The list's ladder, remembered separately; the default step gives Finder's 24 pt row |
 | Previews | At icon sizes ≥ 32 a content thumbnail replaces the type icon | Same as on the left (previews from the 64 default upward) | Rows show the type icon; a selected file is previewed in the last column |
 

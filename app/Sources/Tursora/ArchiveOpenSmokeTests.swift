@@ -612,7 +612,9 @@ enum ArchiveOpenSmokeTests: SmokeSuite {
                         indexes.insert(row)
                     }
                 }
-                let wrote = columns.browser(columns.browser, writeRowsWith: indexes, inColumn: 0, to: drag)
+                let columnWriters = columns.dragWriters(rows: indexes, inColumn: 0)
+                drag.clearContents()
+                let wrote = !columnWriters.isEmpty && drag.writeObjects(columnWriters)
                 check("drag: the column view writes both rows", wrote && drag.pasteboardItems?.count == 2,
                       "\(String(describing: drag.pasteboardItems?.count))")
                 check("drag: columns: a file not yet extracted is promised with the private type, an extracted one is its file",
@@ -691,10 +693,9 @@ enum ArchiveOpenSmokeTests: SmokeSuite {
               "\(dropped)")
         other.setViewMode(.columns)
         await waitUntil("drag: the other pane shows columns") { other.viewMode == .columns }
-        var row = -1, column = 0
-        var operation = NSBrowser.DropOperation.on
+        var row = -1
         let validated = other.columnView.browser(other.columnView.browser, validateDrop: FakeDraggingInfo(pasteboard: pasteboard),
-                                                 proposedRow: &row, column: &column, dropOperation: &operation)
+                                                 row: &row, column: 0)
         check("drag: the column view accepts a promised entry through the shared reader", validated == .copy, "\(validated)")
         other.setViewMode(.details)
         let previous = other.lastTransferTask

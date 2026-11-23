@@ -18,7 +18,7 @@ Extracted read-only from macOS 26.3 (25D125) Finder resources on 2026-09-15, plu
 
 ## How Tursora uses it
 
-- The view is `NSBrowser` in item mode (`ColumnViewController`), matching Finder's class. Minimum width 100, default width 245 and six visible columns are taken from the resources above; the default zoom step gives a 24 pt row.
+- Since D123 the view is `ColumnBrowser`, the app's own column tables (one `NSTableView` per column in a horizontal scroll view, plus a preview column); before that it was `NSBrowser` in item mode, matching Finder's class, and the NSBrowser findings below describe that implementation. Dragging from columns is verified by the owner in the packaged app (2026-11-23): AppKit's item-mode browser turned vertical drags into multi-selection, never started the drag it agreed to, never asked for an image, and a drag started by the app itself ended over Quick Look's out-of-process preview; the table-based columns drag as the list view does. Minimum width 100, default width 245 and six visible columns are taken from the resources above; the default zoom step gives a 24 pt row.
 - The binding is **⌥⌘3**, not Finder's ⌘3: ⌘3 selects tab 3 in Tursora, and ⌥⌘1 / ⌥⌘2 already select the other two views. Finder's ⌥⌘3 is `Clean Up By ▸ Last Opened`, which Tursora does not have, so nothing collides.
 - The preview column reuses the docked preview pane's renderer, so Markdown is rendered there too; Finder's preview column shows Quick Look plus an information block, which is not reproduced.
 

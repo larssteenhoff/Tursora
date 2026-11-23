@@ -1,7 +1,8 @@
 import AppKit
 
-/// Column view: Finder's "as Columns", built on `NSBrowser` — which is what
-/// Finder itself uses (`TColumnView : NSBrowser`, ColumnView.nib).
+/// Column view: Finder's "as Columns". Finder builds it on `NSBrowser`
+/// (`TColumnView : NSBrowser`); here the columns are the app's own tables
+/// (`ColumnBrowser`), so dragging works as in the list view.
 ///
 /// A selected folder opens its contents in the column to the right, and the
 /// chain follows the selection; a selected file shows a preview in the last
@@ -16,40 +17,6 @@ import AppKit
 /// The browser is fed from `DirectoryModel`'s node tree, so filtering and
 /// sorting are the model's, and the root column is the same listing the list
 /// and icon views show.
-/// The one thing a plain `NSBrowser` cannot do for us: the zoom gestures every
-/// file view supports arrive at the browser, not at its view controller.
-final class ColumnBrowser: NSBrowser {
-    var onZoomScroll: ((NSEvent) -> Void)?
-    var onMagnify: ((CGFloat) -> Void)?
-    /// Escape aborted an inline rename; the controller clears its flag.
-    var onRenameAborted: (() -> Void)?
-    override func scrollWheel(with event: NSEvent) {
-        if ZoomGestureAccumulator.isZoomScroll(event.modifierFlags) { onZoomScroll?(event) }
-        else { super.scrollWheel(with: event) }
-    }
-    override func magnify(with event: NSEvent) { onMagnify?(event.magnification) }
-
-    /// Escape while renaming cancels the edit. The field editor forwards
-    /// `cancelOperation:` up its responder chain, which passes through here
-    /// before reaching the pane; `abortEditing` ends the session without
-    /// committing. When nothing is being edited the event continues up the
-    /// chain as before (the pane clears its filter on Escape).
-    override func cancelOperation(_ sender: Any?) {
-        // In item mode the editing session belongs to the column's inner
-        // table view, not to the browser itself, so ask whoever owns the
-        // field editor — that control's abortEditing ends it uncommitted.
-        let owner = (window?.fieldEditor(false, for: nil)?.delegate as? NSControl)
-        if owner?.abortEditing() == true || abortEditing() {
-            onRenameAborted?()
-            window?.makeFirstResponder(self)
-        } else {
-            // See BrowserViewController.cancelOperation: NSResponder has no
-            // implementation to call, so hand it on with tryToPerform.
-            nextResponder?.tryToPerform(#selector(NSResponder.cancelOperation(_:)), with: sender)
-        }
-    }
-}
-
 /// A column row that draws its title — icon attachment and name — centred on
 /// the row, where NSBrowser draws the selection highlight and the folder
 /// chevron.
@@ -139,7 +106,7 @@ final class ColumnRowCell: NSBrowserCell {
     }
 }
 
-final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelegate {
+final class ColumnViewController: NSViewController, FileViewing, ColumnBrowserDelegate {
 
     let model: DirectoryModel
     let browser = ColumnBrowser()
@@ -186,7 +153,7 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
         }
     }
 
-    func browser(_ browser: NSBrowser, shouldSizeColumn columnIndex: Int,
+    func browser(_ browser: ColumnBrowser, shouldSizeColumn columnIndex: Int,
                  forUserResize: Bool, toWidth suggestedWidth: CGFloat) -> CGFloat {
         if forUserResize {
             hasUserColumnResize = true
@@ -195,7 +162,7 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
         return columnIndex >= 0 && columnIndex < columnWidths.count ? CGFloat(columnWidths[columnIndex]) : 245
     }
 
-    func browserColumnConfigurationDidChange(_ notification: Notification) {
+    func browserColumnConfigurationDidChange(_ browser: ColumnBrowser) {
         guard hasUserColumnResize else { return }
         hasUserColumnResize = false
         var widths = columnWidths
@@ -315,17 +282,8 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
         browser.target = self
         browser.action = #selector(browserClicked(_:))
         browser.doubleAction = #selector(browserDoubleClicked(_:))
-        browser.allowsMultipleSelection = true
-        browser.allowsEmptySelection = true
-        browser.hasHorizontalScroller = true
-        browser.autohidesScroller = true
-        browser.columnResizingType = .userColumnResizing
         browser.minColumnWidth = 100                      // Finder's ColumnView.nib
-        browser.setDefaultColumnWidth(245)                // Finder's ColumnViewOptions.ColumnWidth
-        browser.maxVisibleColumns = 6                     // Finder's ColumnView.nib
-        browser.takesTitleFromPreviousColumn = false
-        browser.isTitled = false
-        browser.setCellClass(ColumnRowCell.self)          // draws the title centred on the row
+        browser.defaultColumnWidth = 245                  // Finder's ColumnViewOptions.ColumnWidth
         browser.registerForDraggedTypes([.fileURL, ArchiveEntryPromiseProvider.internalType])
         updateDragMasks()
         view.addSubview(browser)
@@ -691,13 +649,13 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
 
     // MARK: - NSBrowserDelegate (item based)
 
-    func rootItem(for browser: NSBrowser) -> Any? { root }
+    func rootItem(for browser: ColumnBrowser) -> Any? { root }
 
-    func browser(_ browser: NSBrowser, numberOfChildrenOfItem item: Any?) -> Int {
+    func browser(_ browser: ColumnBrowser, numberOfChildrenOfItem item: Any?) -> Int {
         children(of: item ?? root).count
     }
 
-    func browser(_ browser: NSBrowser, child index: Int, ofItem item: Any?) -> Any {
+    func browser(_ browser: ColumnBrowser, child index: Int, ofItem item: Any?) -> Any {
         let list = children(of: item ?? root)
         // AppKit can probe a row past the end (a lookup at `row + 1`, a column
         // mid-collapse). A file manager must not trap for that; the root
@@ -706,12 +664,12 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
         return list[index]
     }
 
-    func browser(_ browser: NSBrowser, isLeafItem item: Any?) -> Bool {
+    func browser(_ browser: ColumnBrowser, isLeafItem item: Any?) -> Bool {
         guard let node = item as? FileNode else { return false }
         return !node.item.isNavigable
     }
 
-    func browser(_ browser: NSBrowser, objectValueForItem item: Any?) -> Any? {
+    func browser(_ browser: ColumnBrowser, objectValueForItem item: Any?) -> Any? {
         (item as? FileNode)?.item.name
     }
 
@@ -722,9 +680,8 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
     /// attachment at the head of the title, which is also how the row picks up
     /// `displayName` (the show-extensions preference) and the dimming a cut
     /// item needs. Casting to `NSBrowserCell` here silently disabled all three.
-    func browser(_ sender: NSBrowser, willDisplayCell cell: Any, atRow row: Int, column: Int) {
-        guard let cell = cell as? NSCell,
-              let node = sender.item(atRow: row, inColumn: column) as? FileNode else { return }
+    func browser(_ sender: ColumnBrowser, willDisplayCell cell: NSCell, atRow row: Int, column: Int) {
+        guard let node = sender.item(atRow: row, inColumn: column) as? FileNode else { return }
         let cut = cutURLs.contains(node.url.standardizedFileURL)
         let font = NSFont.systemFont(ofSize: max(11, min(13, iconSize * 0.55)))
         let title = NSMutableAttributedString(attachment: iconAttachment(for: node.item, cut: cut, font: font))
@@ -770,7 +727,7 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
     /// no typed letter could ever match. The real name is supplied instead, as
     /// the list view does through `outlineView(_:typeSelectStringFor:item:)`.
     /// The extension is included whether or not it is drawn, matching the list.
-    func browser(_ browser: NSBrowser, typeSelectStringForRow row: Int, inColumn column: Int) -> String? {
+    func browser(_ browser: ColumnBrowser, typeSelectStringForRow row: Int, inColumn column: Int) -> String? {
         (browser.item(atRow: row, inColumn: column) as? FileNode)?.item.name
     }
 
@@ -806,7 +763,7 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
 
     /// The last column previews a selected file, reusing the docked pane's
     /// Markdown renderer and Quick Look fallback.
-    func browser(_ browser: NSBrowser, previewViewControllerForLeafItem item: Any) -> NSViewController? {
+    func browser(_ browser: ColumnBrowser, previewViewControllerForLeafItem item: Any) -> NSViewController? {
         guard let node = item as? FileNode else { return nil }
         _ = preview.view
         // An archive entry not yet extracted is extracted for it first (D99).
@@ -814,69 +771,69 @@ final class ColumnViewController: NSViewController, FileViewing, NSBrowserDelega
         return preview
     }
 
-    func browser(_ browser: NSBrowser, shouldEditItem item: Any?) -> Bool {
+    func browser(_ browser: ColumnBrowser, shouldEditItem item: Any?) -> Bool {
         allowsRenaming && !isReadOnly && (item as? FileNode) != nil
     }
 
-    func browser(_ browser: NSBrowser, setObjectValue object: Any?, forItem item: Any?) {
+    func browser(_ browser: ColumnBrowser, setObjectValue object: Any?, forItem item: Any?) {
         renamingURL = nil
         guard let node = item as? FileNode, let name = object as? String,
               !name.isEmpty, name != node.item.name else { return }
         onRenameCommitted?(node.item, name)
     }
 
-    // Drag out
-    func browser(_ browser: NSBrowser, writeRowsWith rowIndexes: IndexSet, inColumn column: Int,
-                 to pasteboard: NSPasteboard) -> Bool {
-        let items = rowIndexes.compactMap { (browser.item(atRow: $0, inColumn: column) as? FileNode)?.item }
-        // Other apps get real paths: an archive entry's logical URL exists
-        // nowhere on disk, so it is written as its file, or as a promise when
-        // not yet extracted (D101), and such a drag can only ever copy.
-        let writers = items.compactMap { $0.isArchiveEntry ? ArchiveDragExport.writer(for: $0) : $0.url as NSURL }
-        guard !writers.isEmpty else { return false }
+    // Drag out, as in the list view: each row is a pasteboard writer, and the
+    // session gets the app's ghost. Other apps get real paths: an archive
+    // entry's logical URL exists nowhere on disk, so it is written as its
+    // file, or as a promise when not yet extracted (D101), and such a drag can
+    // only ever copy.
+    func browser(_ browser: ColumnBrowser, pasteboardWriterForRow row: Int, inColumn column: Int) -> NSPasteboardWriting? {
+        guard let item = (browser.item(atRow: row, inColumn: column) as? FileNode)?.item else { return nil }
+        return item.isArchiveEntry ? ArchiveDragExport.writer(for: item) : item.url as NSURL
+    }
+
+    /// What a drag of these rows puts on the pasteboard.
+    func dragWriters(rows: IndexSet, inColumn column: Int) -> [NSPasteboardWriting] {
+        rows.compactMap { browser(browser, pasteboardWriterForRow: $0, inColumn: column) }
+    }
+
+    func browser(_ browser: ColumnBrowser, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint,
+                 forRows rows: IndexSet, inColumn column: Int, from table: NSTableView) {
+        let items = rows.compactMap { (browser.item(atRow: $0, inColumn: column) as? FileNode)?.item }
         draggingReadOnlyItems = items.contains(where: \.isArchiveEntry)
-        pasteboard.clearContents()
-        pasteboard.writeObjects(writers)
-        return true
+        DragGhost.apply(to: session, items: items, in: table, at: screenPoint)
+    }
+
+    func browser(_ browser: ColumnBrowser, draggingSessionEndedWith operation: NSDragOperation) {
+        draggingReadOnlyItems = false
     }
 
     // Drop onto a folder row, or onto a column's background (its folder)
-    func browser(_ browser: NSBrowser, validateDrop info: NSDraggingInfo, proposedRow row: UnsafeMutablePointer<Int>,
-                 column: UnsafeMutablePointer<Int>, dropOperation: UnsafeMutablePointer<NSBrowser.DropOperation>)
-        -> NSDragOperation {
-        guard !isReadOnly,
-              let destination = dropTarget(row: row.pointee, column: column.pointee, operation: dropOperation.pointee)
-        else { return [] }
+    func browser(_ browser: ColumnBrowser, validateDrop info: NSDraggingInfo, row: inout Int, column: Int) -> NSDragOperation {
+        // Anywhere but a folder row means the column's own folder, and the
+        // highlight must point where the drop will actually land.
+        if !(row >= 0 && (browser.item(atRow: row, inColumn: column) as? FileNode)?.item.isNavigable == true) { row = -1 }
+        guard !isReadOnly, let destination = dropTarget(row: row, column: column) else { return [] }
         // Through the shared reader, so a promised ZIP entry counts too.
         let urls = info.fileURLs
         guard !urls.isEmpty else { return [] }
         // A ⌘ drag reaches a destination with its mask narrowed to .generic, so
         // the answer must be given within that mask or AppKit refuses the drop
-        // (D70). This layer is what every other destination answers through;
-        // acceptDrop below recomputes with the raw rule and hands .move on.
-        // The highlight must also point where the drop will actually land:
-        // anywhere but a folder row means the column's own folder.
-        if !(dropOperation.pointee == .on && row.pointee >= 0
-             && (browser.item(atRow: row.pointee, inColumn: column.pointee) as? FileNode)?.item.isNavigable == true) {
-            row.pointee = -1
-            dropOperation.pointee = .on
-        }
+        // (D70); acceptDrop recomputes with the raw rule and hands .move on.
         return DragAndDrop.validationOperation(for: urls, into: destination, sourceMask: info.draggingSourceOperationMask)
     }
 
-    func browser(_ browser: NSBrowser, acceptDrop info: NSDraggingInfo, atRow row: Int, column: Int,
-                 dropOperation: NSBrowser.DropOperation) -> Bool {
+    func browser(_ browser: ColumnBrowser, acceptDrop info: NSDraggingInfo, row: Int, column: Int) -> Bool {
         let urls = info.fileURLs
-        guard let destination = dropTarget(row: row, column: column, operation: dropOperation), !urls.isEmpty
-        else { return false }
+        guard let destination = dropTarget(row: row, column: column), !urls.isEmpty else { return false }
         let operation = FileOperations.dropOperation(for: urls, into: destination, sourceMask: info.draggingSourceOperationMask)
         guard !operation.isEmpty else { return false }
         onDropFiles?(urls, destination, operation)
         return true
     }
 
-    private func dropTarget(row: Int, column: Int, operation: NSBrowser.DropOperation) -> URL? {
-        if operation == .on, row >= 0, let node = browser.item(atRow: row, inColumn: column) as? FileNode,
+    private func dropTarget(row: Int, column: Int) -> URL? {
+        if row >= 0, let node = browser.item(atRow: row, inColumn: column) as? FileNode,
            node.item.isNavigable { return node.url }
         if column == 0 { return model.url }
         // The preview column's parent is a leaf. A package is a directory on

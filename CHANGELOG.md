@@ -20,6 +20,7 @@ User-visible changes are recorded here. Add changes under Unreleased, then move 
 
 ### Fixed
 
+- **Dragging from column view works**, in any direction and with the rounded ghost: column view is now built from the app's own tables, like List view, instead of AppKit's column browser.
 - Column view rows draw their icon and name centred in the row, so the selection highlight lines up with them; at larger icon sizes the icon is no longer cut off at the top of the row.
 - Changing zoom, icon previews or recursive folder-size calculation keeps the selected files and scroll position.
 - New Folder registers its own Undo/Redo, and New Folder with Selection groups the folder and moved items into one undo operation.
@@ -34,7 +35,7 @@ User-visible changes are recorded here. Add changes under Unreleased, then move 
 
 ### Changed
 
-- Dragging files in List and Icon view shows the app's own Finder-style ghost: each item's icon beside its name in a rounded label, with a count badge for several items.
+- Dragging files shows the app's own Finder-style ghost: each item's icon beside its name in a rounded label, with a count badge for several items.
 - Windows open at 1013 × 594 points, including restored ones, which keep their saved position.
 - Path bar segments no longer draw an outline when hovered.
 - The path bar shows the full path to the selected item, file included, in every view, as Finder's does; a Settings checkbox turns this off.

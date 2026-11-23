@@ -40,6 +40,28 @@ enum ColumnViewSmokeTests: SmokeSuite {
         await expectEventually("the file is selected three columns deep") {
             pane.columnView.selectedItems.map(\.url.lastPathComponent) == ["run.txt"]
         }
+        // Dragging works as in the list view: the columns are the app's own
+        // tables, which accept a drag in any direction and hand each row over
+        // as a pasteboard writer.
+        let columnBrowser = pane.columnView.browser
+        let fileRow = (0..<5).first { (columnBrowser.item(atRow: $0, inColumn: 2) as? FileNode)?.item.name == "run.txt" }
+        func tables(in view: NSView) -> [NSTableView] {
+            view.subviews.flatMap { ($0 as? NSTableView).map { [$0] } ?? tables(in: $0) }
+        }
+        check("every column is a table that lets a drag start up or down",
+              tables(in: columnBrowser).count == 3 && tables(in: columnBrowser).allSatisfy(\.verticalMotionCanBeginDrag)
+              && tables(in: columnBrowser).allSatisfy { !($0.className.hasPrefix("NSBrowser")) })
+        if let fileRow, let table = tables(in: columnBrowser).last {
+            let board = NSPasteboard(name: NSPasteboard.Name("tursora-column-drag-\(UUID().uuidString)"))
+            defer { board.releaseGlobally() }
+            board.clearContents()
+            let writer = table.dataSource?.tableView?(table, pasteboardWriterForRow: fileRow)
+            check("a dragged column row carries its file, as a list row does",
+                  writer.map { board.writeObjects([$0]) } == true && board.fileURLs.map(\.lastPathComponent) == ["run.txt"],
+                  "\(board.fileURLs)")
+        } else {
+            check("the selected file has a row in the third column", false)
+        }
         let titles = pane.addressBar.segmentTitles
         check("the path bar runs on to the selected file, as Finder's does",
               Array(titles.suffix(4)) == [root.lastPathComponent, "Apps", "Launcher", "run.txt"], "\(titles)")
@@ -371,6 +393,8 @@ enum ColumnViewSmokeTests: SmokeSuite {
         await expectEventually("pdf listed") { pane.model.generation > g3 }
         columns.reloadData()
         columns.select(urls: [pdf])
+        // The preview column fills on the next pass of the run loop.
+        await expectEventually("the preview column fills") { columns.previewedURLForTesting != nil }
         check("selecting a PDF holds it in the preview column",
               columns.previewedURLForTesting?.lastPathComponent == "doc.pdf",
               "\(columns.previewedURLForTesting?.lastPathComponent ?? "nil")")
