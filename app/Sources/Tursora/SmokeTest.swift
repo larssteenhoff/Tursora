@@ -40,6 +40,7 @@ enum SmokeTest: SmokeSuite {
             ("Preferences isolation", { done in PreferencesIsolationSmokeTests.run(); done() }),
             ("Dock menu", DockMenuSmokeTests.run),
             ("Directory view properties", DirectoryViewPropertiesSmokeTests.run),
+            ("Merged folders", { done in MergedFoldersSmokeTests.run(); done() }),
             ("View options and column widths", ViewOptionsSmokeTests.run),
             ("Directory loading", DirectoryLoadingSmokeTests.run),
             ("Path completion", PathCompletionSmokeTests.run),
